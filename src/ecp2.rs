@@ -94,6 +94,15 @@ impl ECP2 {
         return E;
     }
 
+    // Construct from (X, Y, Z) with no gaurentee of correctness.
+    pub fn new_projective(x: FP2, y: FP2, z: FP2) -> ECP2 {
+        ECP2 {
+            x,
+            y,
+            z
+        }
+    }
+
     /* Test this=O? */
     pub fn is_infinity(&self) -> bool {
         self.x.iszilch() && self.z.iszilch()

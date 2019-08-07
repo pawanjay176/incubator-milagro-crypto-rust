@@ -149,7 +149,7 @@ impl FP {
             t.norm();
             return t;
         }
-    
+
         if MODTYPE==ModType::MONTGOMERY_FRIENDLY {
             let mut b = BIG::new();
             for i in 0..big::NLEN {
@@ -713,5 +713,14 @@ impl FP {
         let mut p = BIG::new_ints(&rom::MODULUS);
         let mut w = self.redc();
         return w.jacobi(&mut p);
+    }
+
+    // Checks if the field value is negative
+    //
+    // Negative if a > -a
+    pub fn is_neg(&mut self) -> bool {
+        let mut neg_a = self.clone();
+        neg_a.neg();
+        BIG::comp(&self.redc(), &neg_a.redc()) > 0
     }
 }

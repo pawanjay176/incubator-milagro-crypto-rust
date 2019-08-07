@@ -19,16 +19,11 @@ under the License.
 
 use super::super::arch;
 use super::big;
-use super::big::BIG;
+use super::big::{BIG, MODBYTES};
 use super::super::arch::Chunk;
 
-#[derive(Copy)]
 pub struct DBIG {
     pub w: [Chunk; big::DNLEN],
-}
-
-impl Clone for DBIG {
-    fn clone(&self) -> DBIG { *self }
 }
 
 impl DBIG {
@@ -297,5 +292,15 @@ impl DBIG {
             s = s + &format!("{:X}", b.w[0] & 15);
         }
         return s;
+    }
+
+    // convert from byte array to DBIG
+    pub fn frombytes(b: &[u8]) -> DBIG {
+        let mut m = DBIG::new();
+        for i in 0 ..(2 * MODBYTES as usize) {
+            m.shl(8);
+            m.w[0] += (b[i] & 0xff) as Chunk;
+        }
+        m
     }
 }
