@@ -17,10 +17,13 @@ specific language governing permissions and limitations
 under the License.
 */
 
+/// BLS12-381
+///
+/// An implementation of BLS12-381 as specified by the following standard:
+/// https://github.com/cfrg/draft-irtf-cfrg-bls-signature
 use super::ecp::ECP;
 use super::ecp2::ECP2;
 use std::str;
-//use super::fp12::FP12;
 use super::big;
 use super::big::Big;
 use super::pair;
@@ -36,7 +39,7 @@ pub const BGS: usize = big::MODBYTES as usize;
 pub const BLS_OK: isize = 0;
 pub const BLS_FAIL: isize = -1;
 
-// hash a message to an ECP point, using SHA3
+/// Hash a message to an ECP point, using SHA3
 #[allow(non_snake_case)]
 fn bls_hashit(m: &str) -> ECP {
     let mut sh = SHA3::new(SHAKE256);
