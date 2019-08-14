@@ -9,6 +9,9 @@ repository = "https://github.com/milagro-crypto/amcl"
 
 [dependencies]
 
+[dev-dependencies]
+hex = "0.3"
+
 [lib]
 name = "amcl"
 path = "src/lib.rs"

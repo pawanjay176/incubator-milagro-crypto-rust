@@ -109,6 +109,13 @@ const HASH512_K: [u64; 80] = [
     0x6c44198c4a475817,
 ];
 
+/// The block size of each round.
+const BLOCK_SIZE: usize = 128;
+/// Ipad Byte
+const IPAD_BYTE: u8 = 0x36;
+/// Opad Byte
+const OPAD_BYTE: u8 = 0x5c;
+
 pub struct HASH512 {
     length: [u64; 2],
     h: [u64; 8],
@@ -270,6 +277,50 @@ impl HASH512 {
         self.init();
         return digest;
     }
+
+    /// Generate a HMAC
+    ///
+    /// https://tools.ietf.org/html/rfc2104
+    pub fn hmac(key: &[u8], text: &[u8]) -> [u8; 64] {
+        let mut k = key.to_vec();
+
+        // Verify length of key < BLOCK_SIZE
+        if k.len() > BLOCK_SIZE {
+            // Reduce key to 64 bytes by hashing
+            let mut hash512 = HASH512::new();
+            hash512.init();
+            hash512.process_array(&k);
+            k = hash512.hash().to_vec();
+        }
+
+        // Prepare inner and outer paddings
+        // inner = (ipad XOR k)
+        // outer = (opad XOR k)
+        let mut inner = vec![IPAD_BYTE; BLOCK_SIZE];
+        let mut outer = vec![OPAD_BYTE; BLOCK_SIZE];
+        for (i, byte) in k.iter().enumerate() {
+            inner[i] = inner[i] ^ byte;
+            outer[i] = outer[i] ^ byte;
+        }
+
+        // Concatenate inner with text = (ipad XOR k || text)
+        inner.extend_from_slice(text);
+
+        // hash inner = H(ipad XOR k || text)
+        let mut hash512 = HASH512::new();
+        hash512.init();
+        hash512.process_array(&inner);
+        let inner = hash512.hash();
+
+        // Concatenate outer with hash of inner = (opad XOR k) || H(ipad XOR k || text)
+        outer.extend_from_slice(&inner);
+
+        // Final hash = H((opad XOR k) || H(ipad XOR k || text))
+        let mut hash512 = HASH512::new();
+        hash512.init();
+        hash512.process_array(&outer);
+        hash512.hash()
+    }
 }
 
 //8e959b75dae313da 8cf4f72814fc143f 8f7779c6eb9f7fa1 7299aeadb6889018 501d289e4900f7e4 331b99dec4b5433a c7d329eeb6dd2654 5e96e55b874be909
@@ -286,3 +337,89 @@ fn main() {
     let digest=sh.hash();
     for i in 0..64 {print!("{:02x}",digest[i])}
 } */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash512_simple() {
+        let text = [0x01];
+        let mut hash512 = HASH512::new();
+        hash512.init();
+        hash512.process_array(&text);
+        let output = hash512.hash().to_vec();
+
+        let expected =
+            hex::decode("7b54b66836c1fbdd13d2441d9e1434dc62ca677fb68f5fe66a464baadecdbd00576f8d6b5ac3bcc80844b7d50b1cc6603444bbe7cfcf8fc0aa1ee3c636d9e339")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hash512_empty() {
+        let text = [];
+        let mut hash512 = HASH512::new();
+        hash512.init();
+        hash512.process_array(&text);
+        let output = hash512.hash().to_vec();
+
+        let expected =
+            hex::decode("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hash512_long() {
+        let text = hex::decode("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e01").unwrap();
+        let mut hash512 = HASH512::new();
+        hash512.init();
+        hash512.process_array(&text);
+        let output = hash512.hash().to_vec();
+
+        let expected =
+            hex::decode("ca3088651246c66ac9c7a8afd727539ab2d8ce9234b5e1fec311e1e435d6d9eb152e41e8e9ad953dd737d0271ad2b0299cbd6f4eb9536de34c3a01411766c7be")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_simple() {
+        let text = [0x01];
+        let key = [0x01];
+        let expected =
+            hex::decode("503deb5732606d9595e308c8893fe56923fe470fc57021cf252dacb0ad15de020943e139d7a84e77956d34df3cc78142c090b959049a813cb19627c5b49c5761")
+                .unwrap();
+
+        let output = HASH512::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_empty() {
+        let text = [];
+        let key = [];
+        let expected =
+            hex::decode("b936cee86c9f87aa5d3c6f2e84cb5a4239a5fe50480a6ec66b70ab5b1f4ac6730c6c515421b327ec1d69402e53dfb49ad7381eb067b338fd7b0cb22247225d47")
+                .unwrap();
+
+        let output = HASH512::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_long() {
+        let text = hex::decode("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e01").unwrap();
+        let key = [0x01];
+        let expected =
+            hex::decode("d4a8d1b936eb79e6f56b85306e62dea59a54e81690a616e804eaefe2b1e0d7319eecd68494913b3a7e78755a0e1716bb0f0f3b60a810c65f61a909562811d372")
+                .unwrap();
+
+        let output = HASH512::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+}

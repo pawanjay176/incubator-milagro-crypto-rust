@@ -109,6 +109,13 @@ const HASH384_K: [u64; 80] = [
     0x6c44198c4a475817,
 ];
 
+/// The block size of each round.
+const BLOCK_SIZE: usize = 128;
+/// Ipad Byte
+const IPAD_BYTE: u8 = 0x36;
+/// Opad Byte
+const OPAD_BYTE: u8 = 0x5c;
+
 pub struct HASH384 {
     length: [u64; 2],
     h: [u64; 8],
@@ -270,6 +277,50 @@ impl HASH384 {
         self.init();
         return digest;
     }
+
+    /// Generate a HMAC
+    ///
+    /// https://tools.ietf.org/html/rfc2104
+    pub fn hmac(key: &[u8], text: &[u8]) -> [u8; 48] {
+        let mut k = key.to_vec();
+
+        // Verify length of key < BLOCK_SIZE
+        if k.len() > BLOCK_SIZE {
+            // Reduce key to 64 bytes by hashing
+            let mut hash384 = HASH384::new();
+            hash384.init();
+            hash384.process_array(&k);
+            k = hash384.hash().to_vec();
+        }
+
+        // Prepare inner and outer paddings
+        // inner = (ipad XOR k)
+        // outer = (opad XOR k)
+        let mut inner = vec![IPAD_BYTE; BLOCK_SIZE];
+        let mut outer = vec![OPAD_BYTE; BLOCK_SIZE];
+        for (i, byte) in k.iter().enumerate() {
+            inner[i] = inner[i] ^ byte;
+            outer[i] = outer[i] ^ byte;
+        }
+
+        // Concatenate inner with text = (ipad XOR k || text)
+        inner.extend_from_slice(text);
+
+        // hash inner = H(ipad XOR k || text)
+        let mut hash384 = HASH384::new();
+        hash384.init();
+        hash384.process_array(&inner);
+        let inner = hash384.hash();
+
+        // Concatenate outer with hash of inner = (opad XOR k) || H(ipad XOR k || text)
+        outer.extend_from_slice(&inner);
+
+        // Final hash = H((opad XOR k) || H(ipad XOR k || text))
+        let mut hash384 = HASH384::new();
+        hash384.init();
+        hash384.process_array(&outer);
+        hash384.hash()
+    }
 }
 
 //09330c33f71147e8 3d192fc782cd1b47 53111b173b3b05d2 2fa08086e3b0f712 fcc7c71a557e2db9 66c3e9fa91746039
@@ -286,3 +337,89 @@ fn main() {
     let digest=sh.hash();
     for i in 0..48 {print!("{:02x}",digest[i])}
 } */
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash384_simple() {
+        let text = [0x01];
+        let mut hash384 = HASH384::new();
+        hash384.init();
+        hash384.process_array(&text);
+        let output = hash384.hash().to_vec();
+
+        let expected =
+            hex::decode("8d2ce87d86f55fcfab770a047b090da23270fa206832dfea7e0c946fff451f819add242374be551b0d6318ed6c7d41d8")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hash384_empty() {
+        let text = [];
+        let mut hash384 = HASH384::new();
+        hash384.init();
+        hash384.process_array(&text);
+        let output = hash384.hash().to_vec();
+
+        let expected =
+            hex::decode("38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hash384_long() {
+        let text = hex::decode("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e01").unwrap();
+        let mut hash384 = HASH384::new();
+        hash384.init();
+        hash384.process_array(&text);
+        let output = hash384.hash().to_vec();
+
+        let expected =
+            hex::decode("1793c4989b4e68154c7159bee9756e5b72dbc0bd57c7583bb09c9a1c111f46fcaf8ef9faf1715e1eff36526c6c15a1f1")
+                .unwrap();
+
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_simple() {
+        let text = [0x01];
+        let key = [0x01];
+        let expected =
+            hex::decode("52650d924c6c3ed9f7b0fc64107e139d0d9254e8ecfb32e5780535897532ccee5272d61ec5d2abd19fa60e9f69f8711d")
+                .unwrap();
+
+        let output = HASH384::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_empty() {
+        let text = [];
+        let key = [];
+        let expected =
+            hex::decode("6c1f2ee938fad2e24bd91298474382ca218c75db3d83e114b3d4367776d14d3551289e75e8209cd4b792302840234adc")
+                .unwrap();
+
+        let output = HASH384::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hmac_long() {
+        let text = hex::decode("cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e01").unwrap();
+        let key = [0x01];
+        let expected =
+            hex::decode("dee07cba20bcf23f3913c6a885ac08b90702e2c5765f64040b336375c5ad35cce89e9c9f62983be516447e35e65de70c")
+                .unwrap();
+
+        let output = HASH384::hmac(&key, &text).to_vec();
+        assert_eq!(expected, output);
+    }
+}
