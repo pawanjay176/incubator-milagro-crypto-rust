@@ -8,9 +8,8 @@ license = "Apache-2.0"
 repository = "https://github.com/milagro-crypto/amcl"
 
 [dependencies]
-
-[dev-dependencies]
 hex = "0.3"
+lazy_static = "1.2.0"
 
 [lib]
 name = "amcl"

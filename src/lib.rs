@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 pub mod aes;
 #[cfg(target_pointer_width = "32")]
 #[path = "arch/arch32.rs"]
@@ -106,6 +109,7 @@ pub mod bls381 {
     pub mod fp4;
     pub mod mpin;
     pub mod pair;
+    mod bls381_utils;
 }
 
 #[cfg(feature = "fp512bn")]
