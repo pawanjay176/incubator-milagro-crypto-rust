@@ -115,6 +115,8 @@ const BLOCK_SIZE: usize = 128;
 const IPAD_BYTE: u8 = 0x36;
 /// Opad Byte
 const OPAD_BYTE: u8 = 0x5c;
+/// Hash Length in Bytes
+const HASH_BYTES: usize = 48;
 
 pub struct HASH384 {
     length: [u64; 2],
@@ -139,27 +141,27 @@ impl HASH384 {
     }
 
     fn sig0(x: u64) -> u64 {
-        return HASH384::s(28, x) ^ HASH384::s(34, x) ^ HASH384::s(39, x);
+        return Self::s(28, x) ^ Self::s(34, x) ^ Self::s(39, x);
     }
 
     fn sig1(x: u64) -> u64 {
-        return HASH384::s(14, x) ^ HASH384::s(18, x) ^ HASH384::s(41, x);
+        return Self::s(14, x) ^ Self::s(18, x) ^ Self::s(41, x);
     }
 
     fn theta0(x: u64) -> u64 {
-        return HASH384::s(1, x) ^ HASH384::s(8, x) ^ HASH384::r(7, x);
+        return Self::s(1, x) ^ Self::s(8, x) ^ Self::r(7, x);
     }
 
     fn theta1(x: u64) -> u64 {
-        return HASH384::s(19, x) ^ HASH384::s(61, x) ^ HASH384::r(6, x);
+        return Self::s(19, x) ^ Self::s(61, x) ^ Self::r(6, x);
     }
 
     fn transform(&mut self) {
-        /* basic transformation step */
+        // basic transformation step
         for j in 16..80 {
-            self.w[j] = HASH384::theta1(self.w[j - 2])
+            self.w[j] = Self::theta1(self.w[j - 2])
                 .wrapping_add(self.w[j - 7])
-                .wrapping_add(HASH384::theta0(self.w[j - 15]))
+                .wrapping_add(Self::theta0(self.w[j - 15]))
                 .wrapping_add(self.w[j - 16]);
         }
         let mut a = self.h[0];
@@ -173,11 +175,11 @@ impl HASH384 {
         for j in 0..80 {
             /* 64 times - mush it up */
             let t1 = hh
-                .wrapping_add(HASH384::sig1(e))
-                .wrapping_add(HASH384::ch(e, f, g))
+                .wrapping_add(Self::sig1(e))
+                .wrapping_add(Self::ch(e, f, g))
                 .wrapping_add(HASH384_K[j])
                 .wrapping_add(self.w[j]);
-            let t2 = HASH384::sig0(a).wrapping_add(HASH384::maj(a, b, c));
+            let t2 = Self::sig0(a).wrapping_add(Self::maj(a, b, c));
             hh = g;
             g = f;
             f = e;
@@ -197,9 +199,9 @@ impl HASH384 {
         self.h[7] = self.h[7].wrapping_add(hh);
     }
 
-    /* Initialise Hash function */
+    /// Initialise Hash function
     pub fn init(&mut self) {
-        /* initialise */
+        // initialise
         for i in 0..64 {
             self.w[i] = 0
         }
@@ -215,8 +217,8 @@ impl HASH384 {
         self.h[7] = HASH384_H7;
     }
 
-    pub fn new() -> HASH384 {
-        let mut nh = HASH384 {
+    pub fn new() -> Self {
+        let mut nh = Self {
             length: [0; 2],
             h: [0; 8],
             w: [0; 80],
@@ -225,7 +227,7 @@ impl HASH384 {
         return nh;
     }
 
-    /* process a single byte */
+    /// Process a single byte
     pub fn process(&mut self, byt: u8) {
         /* process the next message byte */
         let cnt = ((self.length[0] / 64) % 16) as usize;
@@ -241,15 +243,14 @@ impl HASH384 {
         }
     }
 
-    /* process an array of bytes */
-
+    /// Process an array of bytes
     pub fn process_array(&mut self, b: &[u8]) {
         for i in 0..b.len() {
             self.process(b[i])
         }
     }
 
-    /* process a 32-bit integer */
+    /// Process a 32-bit integer
     pub fn process_num(&mut self, n: i32) {
         self.process(((n >> 24) & 0xff) as u8);
         self.process(((n >> 16) & 0xff) as u8);
@@ -257,10 +258,10 @@ impl HASH384 {
         self.process((n & 0xff) as u8);
     }
 
-    /* Generate 48-byte Hash */
-    pub fn hash(&mut self) -> [u8; 48] {
+    /// Generate 48-byte Hash
+    pub fn hash(&mut self) -> [u8; HASH_BYTES] {
         /* pad message and finish - supply digest */
-        let mut digest: [u8; 48] = [0; 48];
+        let mut digest: [u8; 48] = [0; HASH_BYTES];
         let len0 = self.length[0];
         let len1 = self.length[1];
         self.process(0x80);
@@ -270,8 +271,8 @@ impl HASH384 {
         self.w[14] = len1;
         self.w[15] = len0;
         self.transform();
-        for i in 0..48 {
-            /* convert to bytes */
+        for i in 0..HASH_BYTES {
+            // convert to bytes
             digest[i] = ((self.h[i / 8] >> (8 * (7 - i % 8))) & 0xff) as u8;
         }
         self.init();
@@ -281,13 +282,13 @@ impl HASH384 {
     /// Generate a HMAC
     ///
     /// https://tools.ietf.org/html/rfc2104
-    pub fn hmac(key: &[u8], text: &[u8]) -> [u8; 48] {
+    pub fn hmac(key: &[u8], text: &[u8]) -> [u8; HASH_BYTES] {
         let mut k = key.to_vec();
 
         // Verify length of key < BLOCK_SIZE
         if k.len() > BLOCK_SIZE {
             // Reduce key to 64 bytes by hashing
-            let mut hash384 = HASH384::new();
+            let mut hash384 = Self::new();
             hash384.init();
             hash384.process_array(&k);
             k = hash384.hash().to_vec();
@@ -307,7 +308,7 @@ impl HASH384 {
         inner.extend_from_slice(text);
 
         // hash inner = H(ipad XOR k || text)
-        let mut hash384 = HASH384::new();
+        let mut hash384 = Self::new();
         hash384.init();
         hash384.process_array(&inner);
         let inner = hash384.hash();
@@ -316,10 +317,46 @@ impl HASH384 {
         outer.extend_from_slice(&inner);
 
         // Final hash = H((opad XOR k) || H(ipad XOR k || text))
-        let mut hash384 = HASH384::new();
+        let mut hash384 = Self::new();
         hash384.init();
         hash384.process_array(&outer);
         hash384.hash()
+    }
+
+    /// HKDF-Extract
+    ///
+    /// https://tools.ietf.org/html/rfc5869
+    pub fn hkdf_extract(salt: &[u8], ikm: &[u8]) -> [u8; HASH_BYTES] {
+        Self::hmac(salt, ikm)
+    }
+
+    /// HKDF-Extend
+    ///
+    /// https://tools.ietf.org/html/rfc5869
+    pub fn hkdf_extend(prk: &[u8], info: &[u8], l: u8) -> Vec<u8> {
+        // n = cieling(l / 48)
+        let mut n = l / (HASH_BYTES as u8);
+        if n * (HASH_BYTES as u8) < l {
+            n += 1;
+        }
+
+        let mut okm: Vec<u8> = vec![];
+        let mut previous = vec![]; // T(0) = []
+
+        for i in 0..n as usize {
+            // Concatenate (T(i) || info || i)
+            let mut text: Vec<u8> = previous;
+            text.extend_from_slice(info);
+            text.push((i + 1) as u8); // Note: i <= 254
+
+            // T(i+1) = HMAC(PRK, T(i) || info || i)
+            previous = Self::hmac(prk, &text).to_vec();
+            okm.extend_from_slice(&previous);
+        }
+
+        // Reduce length to size L
+        okm.resize(l as usize, 0);
+        okm
     }
 }
 
@@ -328,7 +365,7 @@ impl HASH384 {
 fn main() {
     let s = String::from("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu");
     let test = s.into_bytes();
-    let mut sh=HASH384::new();
+    let mut sh=Self::new();
 
     for i in 0..test.len(){
         sh.process(test[i]);
@@ -340,6 +377,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
+    // TODO: Test HKDF
     use super::*;
 
     #[test]

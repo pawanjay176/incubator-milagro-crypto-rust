@@ -43,7 +43,7 @@ const BLOCK_SIZE: usize = 64;
 const IPAD_BYTE: u8 = 0x36;
 /// Opad Byte
 const OPAD_BYTE: u8 = 0x5c;
-/// The number of outputted bytes in the hash
+/// Hash Length in Bytes
 const HASH_BYTES: usize = 32;
 
 pub struct HASH256 {

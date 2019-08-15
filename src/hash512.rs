@@ -115,6 +115,8 @@ const BLOCK_SIZE: usize = 128;
 const IPAD_BYTE: u8 = 0x36;
 /// Opad Byte
 const OPAD_BYTE: u8 = 0x5c;
+/// Hash Length in Bytes
+const HASH_BYTES: usize = 64;
 
 pub struct HASH512 {
     length: [u64; 2],
@@ -139,27 +141,27 @@ impl HASH512 {
     }
 
     fn sig0(x: u64) -> u64 {
-        return HASH512::s(28, x) ^ HASH512::s(34, x) ^ HASH512::s(39, x);
+        return Self::s(28, x) ^ Self::s(34, x) ^ Self::s(39, x);
     }
 
     fn sig1(x: u64) -> u64 {
-        return HASH512::s(14, x) ^ HASH512::s(18, x) ^ HASH512::s(41, x);
+        return Self::s(14, x) ^ Self::s(18, x) ^ Self::s(41, x);
     }
 
     fn theta0(x: u64) -> u64 {
-        return HASH512::s(1, x) ^ HASH512::s(8, x) ^ HASH512::r(7, x);
+        return Self::s(1, x) ^ Self::s(8, x) ^ Self::r(7, x);
     }
 
     fn theta1(x: u64) -> u64 {
-        return HASH512::s(19, x) ^ HASH512::s(61, x) ^ HASH512::r(6, x);
+        return Self::s(19, x) ^ Self::s(61, x) ^ Self::r(6, x);
     }
 
     fn transform(&mut self) {
         /* basic transformation step */
         for j in 16..80 {
-            self.w[j] = HASH512::theta1(self.w[j - 2])
+            self.w[j] = Self::theta1(self.w[j - 2])
                 .wrapping_add(self.w[j - 7])
-                .wrapping_add(HASH512::theta0(self.w[j - 15]))
+                .wrapping_add(Self::theta0(self.w[j - 15]))
                 .wrapping_add(self.w[j - 16]);
         }
         let mut a = self.h[0];
@@ -173,11 +175,11 @@ impl HASH512 {
         for j in 0..80 {
             /* 64 times - mush it up */
             let t1 = hh
-                .wrapping_add(HASH512::sig1(e))
-                .wrapping_add(HASH512::ch(e, f, g))
+                .wrapping_add(Self::sig1(e))
+                .wrapping_add(Self::ch(e, f, g))
                 .wrapping_add(HASH512_K[j])
                 .wrapping_add(self.w[j]);
-            let t2 = HASH512::sig0(a).wrapping_add(HASH512::maj(a, b, c));
+            let t2 = Self::sig0(a).wrapping_add(Self::maj(a, b, c));
             hh = g;
             g = f;
             f = e;
@@ -215,8 +217,8 @@ impl HASH512 {
         self.h[7] = HASH512_H7;
     }
 
-    pub fn new() -> HASH512 {
-        let mut nh = HASH512 {
+    pub fn new() -> Self {
+        let mut nh = Self {
             length: [0; 2],
             h: [0; 8],
             w: [0; 80],
@@ -287,7 +289,7 @@ impl HASH512 {
         // Verify length of key < BLOCK_SIZE
         if k.len() > BLOCK_SIZE {
             // Reduce key to 64 bytes by hashing
-            let mut hash512 = HASH512::new();
+            let mut hash512 = Self::new();
             hash512.init();
             hash512.process_array(&k);
             k = hash512.hash().to_vec();
@@ -307,7 +309,7 @@ impl HASH512 {
         inner.extend_from_slice(text);
 
         // hash inner = H(ipad XOR k || text)
-        let mut hash512 = HASH512::new();
+        let mut hash512 = Self::new();
         hash512.init();
         hash512.process_array(&inner);
         let inner = hash512.hash();
@@ -316,10 +318,46 @@ impl HASH512 {
         outer.extend_from_slice(&inner);
 
         // Final hash = H((opad XOR k) || H(ipad XOR k || text))
-        let mut hash512 = HASH512::new();
+        let mut hash512 = Self::new();
         hash512.init();
         hash512.process_array(&outer);
         hash512.hash()
+    }
+
+    /// HKDF-Extract
+    ///
+    /// https://tools.ietf.org/html/rfc5869
+    pub fn hkdf_extract(salt: &[u8], ikm: &[u8]) -> [u8; HASH_BYTES] {
+        Self::hmac(salt, ikm)
+    }
+
+    /// HKDF-Extend
+    ///
+    /// https://tools.ietf.org/html/rfc5869
+    pub fn hkdf_extend(prk: &[u8], info: &[u8], l: u8) -> Vec<u8> {
+        // n = cieling(l / 64)
+        let mut n = l / (HASH_BYTES as u8);
+        if n * (HASH_BYTES as u8) < l {
+            n += 1;
+        }
+
+        let mut okm: Vec<u8> = vec![];
+        let mut previous = vec![]; // T(0) = []
+
+        for i in 0..n as usize {
+            // Concatenate (T(i) || info || i)
+            let mut text: Vec<u8> = previous;
+            text.extend_from_slice(info);
+            text.push((i + 1) as u8); // Note: i <= 254
+
+            // T(i+1) = HMAC(PRK, T(i) || info || i)
+            previous = Self::hmac(prk, &text).to_vec();
+            okm.extend_from_slice(&previous);
+        }
+
+        // Reduce length to size L
+        okm.resize(l as usize, 0);
+        okm
     }
 }
 
@@ -328,7 +366,7 @@ impl HASH512 {
 fn main() {
     let s = String::from("abcdefghbcdefghicdefghijdefghijkefghijklfghijklmghijklmnhijklmnoijklmnopjklmnopqklmnopqrlmnopqrsmnopqrstnopqrstu");
     let test = s.into_bytes();
-    let mut sh=HASH512::new();
+    let mut sh=Self::new();
 
     for i in 0..test.len(){
         sh.process(test[i]);
@@ -421,5 +459,97 @@ mod tests {
 
         let output = HASH512::hmac(&key, &text).to_vec();
         assert_eq!(expected, output);
+    }
+
+    #[test]
+    fn test_hkdf_case_a() {
+        // From https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
+        let ikm = hex::decode("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
+        let salt = hex::decode("000102030405060708090a0b0c").unwrap();
+        let expected_prk =
+            hex::decode("665799823737ded04a88e47e54a5890bb2c3d247c7a4254a8e61350723590a26c36238127d8661b88cf80ef802d57e2f7cebcf1e00e083848be19929c61b4237")
+            .unwrap();
+
+        let output_prk = HASH512::hkdf_extract(&salt, &ikm).to_vec();
+        assert_eq!(expected_prk, output_prk);
+
+        let info = hex::decode("f0f1f2f3f4f5f6f7f8f9").unwrap();
+        let l = 42;
+        let expected_okm = hex::decode(
+            "832390086cda71fb47625bb5ceb168e4c8e26a1a16ed34d9fc7fe92c1481579338da362cb8d9f925d7cb",
+        )
+        .unwrap();
+
+        let output_okm = HASH512::hkdf_extend(&expected_prk, &info, l);
+        assert_eq!(expected_okm, output_okm);
+    }
+
+    #[test]
+    fn test_hkdf_case_b() {
+        // From https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
+        let ikm = hex::decode("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f").unwrap();
+        let salt = hex::decode("606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeaf").unwrap();
+        let expected_prk =
+            hex::decode("35672542907d4e142c00e84499e74e1de08be86535f924e022804ad775dde27ec86cd1e5b7d178c74489bdbeb30712beb82d4f97416c5a94ea81ebdf3e629e4a")
+            .unwrap();
+
+        let output_prk = HASH512::hkdf_extract(&salt, &ikm).to_vec();
+        assert_eq!(expected_prk, output_prk);
+
+        let info = hex::decode("b0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff").unwrap();
+        let l = 82;
+        let expected_okm = hex::decode(
+                "ce6c97192805b346e6161e821ed165673b84f400a2b514b2fe23d84cd189ddf1b695b48cbd1c8388441137b3ce28f16aa64ba33ba466b24df6cfcb021ecff235f6a2056ce3af1de44d572097a8505d9e7a93",
+            )
+            .unwrap();
+
+        let output_okm = HASH512::hkdf_extend(&expected_prk, &info, l);
+        assert_eq!(expected_okm, output_okm);
+    }
+
+    #[test]
+    fn test_hkdf_case_c() {
+        // From https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
+        let ikm = hex::decode("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b").unwrap();
+        let salt = vec![];
+        let expected_prk =
+            hex::decode("fd200c4987ac491313bd4a2a13287121247239e11c9ef82802044b66ef357e5b194498d0682611382348572a7b1611de54764094286320578a863f36562b0df6")
+            .unwrap();
+
+        let output_prk = HASH512::hkdf_extract(&salt, &ikm).to_vec();
+        assert_eq!(expected_prk, output_prk);
+
+        let info = vec![];
+        let l = 42;
+        let expected_okm = hex::decode(
+            "f5fa02b18298a72a8c23898a8703472c6eb179dc204c03425c970e3b164bf90fff22d04836d0e2343bac",
+        )
+        .unwrap();
+
+        let output_okm = HASH512::hkdf_extend(&expected_prk, &info, l);
+        assert_eq!(expected_okm, output_okm);
+    }
+
+    #[test]
+    fn test_hkdf_case_d() {
+        // From https://www.kullo.net/blog/hkdf-sha-512-test-vectors/
+        let ikm = hex::decode("0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c").unwrap();
+        let salt = vec![];
+        let expected_prk =
+            hex::decode("5346b376bf3aa9f84f8f6ed5b1c4f489172e244dac303d12f68ecc766ea600aa88495e7fb605803122fa136924a840b1f0719d2d5f68e29b242299d758ed680c")
+            .unwrap();
+
+        let output_prk = HASH512::hkdf_extract(&salt, &ikm).to_vec();
+        assert_eq!(expected_prk, output_prk);
+
+        let info = vec![];
+        let l = 42;
+        let expected_okm = hex::decode(
+            "1407d46013d98bc6decefcfee55f0f90b0c7f63d68eb1a80eaf07e953cfc0a3a5240a155d6e4daa965bb",
+        )
+        .unwrap();
+
+        let output_okm = HASH512::hkdf_extend(&expected_prk, &info, l);
+        assert_eq!(expected_okm, output_okm);
     }
 }
