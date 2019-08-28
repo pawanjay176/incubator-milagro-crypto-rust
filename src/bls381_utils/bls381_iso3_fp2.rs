@@ -4,10 +4,11 @@ use super::super::fp::FP;
 use super::super::fp2::FP2;
 use super::sqrt_division_chain::sqrt_division_chain;
 
+/**************************************************
+* 3-Isogeny Constants
+**************************************************/
+pub const ISO3_B2_I: isize = 1012;
 lazy_static! {
-    /**************************************************
-    * 3-Isogeny Constants
-    **************************************************/
     // Curve parameters of ISO-3 y^2 = x^3 + ax + b
     pub static ref ISO3_A2: FP2 = FP2::new_ints(0, 240);
     pub static ref ISO3_B2: FP2 = FP2::new_ints(1012, 1012);
@@ -85,18 +86,18 @@ lazy_static! {
 }
 
 /// 3-Isogeny Curve for Mapping to BLS12-381 extension ECP2
-pub struct BLS381_IOS3_FP2 {
-    x: FP2,
-    y: FP2,
-    z: FP2,
+pub struct BLS381_ISO3_FP2 {
+    pub x: FP2,
+    pub y: FP2,
+    pub z: FP2,
 }
 
-impl BLS381_IOS3_FP2 {
+impl BLS381_ISO3_FP2 {
     /// Optimised Shallue-van de Woestijne-Ulas Method
     ///
     /// Adjusted https://eprint.iacr.org/2019/403
     /// such that projectives are (XZ, YZ, Z)
-    pub fn map_to_ios3(t: FP2) -> BLS381_IOS3_FP2 {
+    pub fn map_to_iso3(t: FP2) -> BLS381_ISO3_FP2 {
         let mut t2 = t.clone(); // t
         let neg_t = t2.is_neg(); // store for later
         t2.sqr(); // t^2 (store for later)
@@ -137,7 +138,7 @@ impl BLS381_IOS3_FP2 {
         u.add(&tmp2); // u = num^3 + a * num * den^2
 
         tmp1.mul(&x_denominator); // den^3
-        let v = tmp1.clone(); // den^3
+        let mut v = tmp1.clone(); // den^3
         tmp1.mul(&ISO3_B2); // b * den^3
         u.add(&tmp1); // u = num^3 + a * num * den^2 + b * den^3
 
@@ -145,34 +146,30 @@ impl BLS381_IOS3_FP2 {
         let (success, mut sqrt_candidate) = sqrt_division_fp2(&u, &v);
 
         // Constant time checks incase no sqrt_candidate is found
-        // x1 = e * t^2 * x0
         let mut candidate2 = sqrt_candidate.clone();
-        x_numerator.mul(&et2);
 
-        // g(x0) is not square -> try x1
-        // u(x1) = e^3 * t^6 * u(x0)
+        // g(x0) is not square -> try g(x1)
         u.mul(&et2); // u(x1) = e * t^2 * u(x0)
-        et2.sqr(); // e^2 * t^4
-        u.mul(&et2); // u(x0) = e^3 * t^6 * u(x1)
+        u.mul(&et2); // u(x1) = e^2 * t^4 * u(x0)
+        u.mul(&et2); // u(x1) = e^3 * t^6 * u(x0)
 
-        // candidate2(x1) = candidate2(x0) * t^3
-        candidate2.mul(&t2); // candidate2(x0) * t^2
-        candidate2.mul(&t); // candidate2(x0) * t^3
+        candidate2.mul(&t2); // cadidate(x1) = candidate(x0) * t^2
+        candidate2.mul(&t); // cadidate(x1) = candidate(x0) * t^3
 
         let mut etas = etas();
         for (i, eta) in etas.iter_mut().enumerate() {
             tmp1 = candidate2.clone();
-            tmp1.mul(&eta); // eta * candidate2(x1)
+            tmp1.mul(&eta); // eta * candidate(x1)
 
-            tmp1.sqr(); // (eta * candidate2(x1)) ^ 2
-            tmp1.mul(&v); // v * (eta * candidate2(x1)) ^ 2
-            tmp1.sub(&u); // v * (eta * candidate2(x1)) ^ 2 - u`
+            tmp1.sqr(); // (eta * candidate(x1)) ^ 2
+            tmp1.mul(&v); // v * (eta * candidate(x1)) ^ 2
+            tmp1.sub(&u); // v * (eta * candidate(x1)) ^ 2 - u`
 
             if tmp1.iszilch() {
                 // Valid solution found
                 candidate2.mul(eta);
                 break;
-            } else if i == 3 {
+            } else if i == 3 && !success {
                 // No valid square root found
                 panic!("Hash to curve optimised SWU error");
             }
@@ -180,6 +177,7 @@ impl BLS381_IOS3_FP2 {
 
         if !success {
             sqrt_candidate = candidate2;
+            x_numerator.mul(&et2);
         }
 
         // negate y if y and t oppose in signs
@@ -191,7 +189,7 @@ impl BLS381_IOS3_FP2 {
         // X = x-num; Y = y * x-den; Z = x-den
         sqrt_candidate.mul(&x_denominator);
 
-        BLS381_IOS3_FP2 {
+        BLS381_ISO3_FP2 {
             x: x_numerator,
             y: sqrt_candidate,
             z: x_denominator,
@@ -201,8 +199,8 @@ impl BLS381_IOS3_FP2 {
     /// Mapping from 3-Isogeny Curve to BLS12-381 ECP2
     ///
     /// Adjusted from https://eprint.iacr.org/2019/403
-    /// To convert projectives to (XZ, YZ, Z)
-    pub fn ios3_to_ecp2(&mut self) -> ECP2 {
+    /// to convert projectives to (XZ, YZ, Z)
+    pub fn iso3_to_ecp2(&mut self) -> ECP2 {
         let polynomials_coefficients: [&[FP2; 4]; 4] = [&*XNUM, &*XDEN, &*YNUM, &*YDEN];
         let z_vals = z_powers(&self.z);
 
@@ -246,7 +244,7 @@ fn z_powers(z: &FP2) -> [FP2; 3] {
     two.sqr();
 
     let mut three = two.clone();
-    three.mul(&two);
+    three.mul(&z);
 
     [z.clone(), two, three]
 }
