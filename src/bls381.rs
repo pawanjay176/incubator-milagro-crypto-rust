@@ -21,6 +21,10 @@ under the License.
 ///
 /// An implementation of BLS12-381 as specified by the following standard:
 /// https://github.com/cfrg/draft-irtf-cfrg-bls-signature
+pub mod iso;
+pub mod sqrt_division_chain;
+pub mod clear_cofactor;
+
 use super::big;
 use super::big::Big;
 use super::dbig::DBig;
@@ -30,7 +34,9 @@ use super::fp::FP;
 use super::fp2::FP2;
 use super::pair;
 use super::rom;
-use super::bls381_utils::{BLS381_ISO3_FP2, clear_cofactor_psi};
+use self::iso::ISO3_FP2;
+use self::sqrt_division_chain::sqrt_division_chain;
+use self::clear_cofactor::clear_cofactor_psi;
 use hash256::HASH256;
 use std::str;
 use rand::RAND;
@@ -201,7 +207,7 @@ fn hash_to_base_g2(dst: &[u8], msg: &[u8], ctr: u8) -> FP2 {
 // TODO: Update link when standard is finalised
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04#section-6.9.2
 fn map_to_curve_g2(u: FP2) -> ECP2 {
-    let mut iso3 = BLS381_ISO3_FP2::map_to_iso3(u);
+    let mut iso3 = ISO3_FP2::swu_optimised(u);
     iso3.iso3_to_ecp2()
 }
 
@@ -224,7 +230,7 @@ mod tests {
         let b = Big::frombytes(&hex::decode("18b6775520c61e688a6afe6566a3bd2279e724d3a216ccdb74ea66feac03d4460315a6d65ff5343c4a52d77f2376c74e").unwrap());
         let mut u1 = FP2::new_bigs(&a, &b);
 
-        let mut iso3_0 = BLS381_ISO3_FP2::map_to_iso3(u0);
+        let mut iso3_0 = ISO3_FP2::swu_optimised(u0);
 
         // Prints
         let mut x = iso3_0.x.clone();
@@ -236,7 +242,7 @@ mod tests {
         println!("iso-3 X0: {}", x.tostring());
         println!("iso-3 Y0: {}", y.tostring());
 
-        let mut iso3_1 = BLS381_ISO3_FP2::map_to_iso3(u1);
+        let mut iso3_1 = ISO3_FP2::swu_optimised(u1);
 
         // Prints
         let mut x = iso3_1.x.clone();

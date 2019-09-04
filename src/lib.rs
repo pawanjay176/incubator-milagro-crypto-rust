@@ -109,7 +109,6 @@ pub mod bls381 {
     pub mod fp4;
     pub mod mpin;
     pub mod pair;
-    mod bls381_utils;
 }
 
 #[cfg(feature = "fp512bn")]

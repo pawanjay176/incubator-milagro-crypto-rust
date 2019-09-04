@@ -1,3 +1,22 @@
+/*
+Licensed to the Apache Software Foundation (ASF) under one
+or more contributor license agreements.  See the NOTICE file
+distributed with this work for additional information
+regarding copyright ownership.  The ASF licenses this file
+to you under the Apache License, Version 2.0 (the
+"License"); you may not use this file except in compliance
+with the License.  You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing,
+software distributed under the License is distributed on an
+"AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+KIND, either express or implied.  See the License for the
+specific language governing permissions and limitations
+under the License.
+*/
+
 use super::super::big::Big;
 use super::super::ecp2::ECP2;
 use super::super::fp::FP;
@@ -86,18 +105,18 @@ lazy_static! {
 }
 
 /// 3-Isogeny Curve for Mapping to BLS12-381 extension ECP2
-pub struct BLS381_ISO3_FP2 {
+pub struct ISO3_FP2 {
     pub x: FP2,
     pub y: FP2,
     pub z: FP2,
 }
 
-impl BLS381_ISO3_FP2 {
+impl ISO3_FP2 {
     /// Optimised Shallue-van de Woestijne-Ulas Method
     ///
     /// Adjusted https://eprint.iacr.org/2019/403
     /// such that projectives are (XZ, YZ, Z)
-    pub fn map_to_iso3(t: FP2) -> BLS381_ISO3_FP2 {
+    pub fn swu_optimised(t: FP2) -> ISO3_FP2 {
         let mut t2 = t.clone(); // t
         let neg_t = t2.is_neg(); // store for later
         t2.sqr(); // t^2 (store for later)
@@ -189,7 +208,7 @@ impl BLS381_ISO3_FP2 {
         // X = x-num; Y = y * x-den; Z = x-den
         sqrt_candidate.mul(&x_denominator);
 
-        BLS381_ISO3_FP2 {
+        ISO3_FP2 {
             x: x_numerator,
             y: sqrt_candidate,
             z: x_denominator,
