@@ -34,6 +34,7 @@ lazy_static! {
     pub static ref ISO3_E2: FP2 = FP2::new_ints(1, 1);
 
     // Roots of unity and eta
+    // TODO: Convert the following hex::decode() into [i64; NLEN] hence Big::from_ints() can be used
     pub static ref SQRT_1: FP = FP::new_big(&Big::frombytes(&hex::decode("06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09").unwrap()));
     pub static ref EV1: FP = FP::new_big(&Big::frombytes(&hex::decode("02c4a7244a026bd3e305cc456ad9e235ed85f8b53954258ec8186bb3d4eccef7c4ee7b8d4b9e063a6c88d0aa3e03ba01").unwrap()));
     pub static ref EV2: FP = FP::new_big(&Big::frombytes(&hex::decode("085fa8cd9105715e641892a0f9a4bb2912b58b8d32f26594c60679cc7973076dc6638358daf3514d6426a813ae01f51a").unwrap()));
