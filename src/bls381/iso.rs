@@ -35,7 +35,7 @@ lazy_static! {
 
     // Roots of unity and eta
     // TODO: Convert the following hex::decode() into [i64; NLEN] hence Big::from_ints() can be used
-    pub static ref SQRT_1: FP = FP::new_big(&Big::frombytes(&hex::decode("06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09").unwrap()));
+    pub static ref SQRT_I: FP = FP::new_big(&Big::frombytes(&hex::decode("06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09").unwrap()));
     pub static ref EV1: FP = FP::new_big(&Big::frombytes(&hex::decode("02c4a7244a026bd3e305cc456ad9e235ed85f8b53954258ec8186bb3d4eccef7c4ee7b8d4b9e063a6c88d0aa3e03ba01").unwrap()));
     pub static ref EV2: FP = FP::new_big(&Big::frombytes(&hex::decode("085fa8cd9105715e641892a0f9a4bb2912b58b8d32f26594c60679cc7973076dc6638358daf3514d6426a813ae01f51a").unwrap()));
 
@@ -119,7 +119,7 @@ impl ISO3_FP2 {
     /// such that projectives are (XZ, YZ, Z)
     pub fn swu_optimised(t: FP2) -> ISO3_FP2 {
         let mut t2 = t.clone(); // t
-        let neg_t = t2.is_neg(); // store for later
+        let is_neg_t = t2.is_neg(); // store for later
         t2.sqr(); // t^2 (store for later)
         let mut et2 = t2.clone(); // et2 = t^2
         et2.mul(&ISO3_E2); // et2 = e * t^2
@@ -147,7 +147,7 @@ impl ISO3_FP2 {
         // u = num^3 + a * num * den^2 + b * den^3
         // v = den^3
         let mut u = x_numerator.clone();
-        u.sqr(); // num^2
+        u.sqr();
         u.mul(&x_numerator); // u = num^3
 
         let mut tmp1 = x_denominator.clone();
@@ -162,56 +162,55 @@ impl ISO3_FP2 {
         tmp1.mul(&ISO3_B2); // b * den^3
         u.add(&tmp1); // u = num^3 + a * num * den^2 + b * den^3
 
-        // sqrt_candidate(x0) = uv^7 * (uv^15)^((p-9)/16) * root of unity
+        // sqrt_candidate(x0) = sqrt(u / v)
         let (success, mut sqrt_candidate) = sqrt_division_fp2(&u, &v);
+        let mut y = sqrt_candidate.clone();
 
-        // Constant time checks incase no sqrt_candidate is found
-        let mut candidate2 = sqrt_candidate.clone();
-
-        // g(x0) is not square -> try g(x1)
-        u.mul(&et2); // u(x1) = e * t^2 * u(x0)
-        u.mul(&et2); // u(x1) = e^2 * t^4 * u(x0)
+        // Handle case where x0 is not square -> try x1
+        sqrt_candidate.mul(&t2);
+        sqrt_candidate.mul(&t); // sqrt_candidate(x1) = sqrt_candidate(x0) * t^3
+        u.mul(&et2);
+        u.mul(&et2);
         u.mul(&et2); // u(x1) = e^3 * t^6 * u(x0)
 
-        candidate2.mul(&t2); // cadidate(x1) = candidate(x0) * t^2
-        candidate2.mul(&t); // cadidate(x1) = candidate(x0) * t^3
-
         let mut etas = etas();
+        let mut success_2 = false;
         for (i, eta) in etas.iter_mut().enumerate() {
-            tmp1 = candidate2.clone();
-            tmp1.mul(&eta); // eta * candidate(x1)
+            tmp1 = sqrt_candidate.clone();
+            tmp1.mul(&eta); // eta * sqrt_candidate(x1)
 
-            tmp1.sqr(); // (eta * candidate(x1)) ^ 2
-            tmp1.mul(&v); // v * (eta * candidate(x1)) ^ 2
-            tmp1.sub(&u); // v * (eta * candidate(x1)) ^ 2 - u`
+            tmp1.sqr(); // (eta * sqrt_candidate(x1)) ^ 2
+            tmp1.mul(&v); // v * (eta * sqrt_candidate(x1)) ^ 2
+            tmp1.sub(&u); // v * (eta * sqrt_candidate(x1)) ^ 2 - u`
 
-            if tmp1.iszilch() {
+            if tmp1.iszilch() && !success && !success_2 {
                 // Valid solution found
-                candidate2.mul(eta);
-                break;
-            } else if i == 3 && !success {
+                y = sqrt_candidate;
+                y.mul(eta);
+                success_2 = true;
+            } else if i == 3 && !success && !success_2 {
                 // No valid square root found
-                panic!("Hash to curve optimised SWU error");
+                panic!("Hash to curve - optimised SWU error");
             }
         }
 
         if !success {
-            sqrt_candidate = candidate2;
+            // Candidate 2 taken, update numerator
             x_numerator.mul(&et2);
         }
 
         // negate y if y and t oppose in signs
-        if neg_t != sqrt_candidate.is_neg() {
-            sqrt_candidate.neg();
+        if is_neg_t != y.is_neg() {
+            y.neg();
         }
 
         // Projective mapping
         // X = x-num; Y = y * x-den; Z = x-den
-        sqrt_candidate.mul(&x_denominator);
+        y.mul(&x_denominator);
 
         ISO3_FP2 {
             x: x_numerator,
-            y: sqrt_candidate,
+            y: y,
             z: x_denominator,
         }
     }
@@ -287,6 +286,8 @@ fn sqrt_division_fp2(u: &FP2, v: &FP2) -> (bool, FP2) {
     sqrt_candidate.mul(&tmp2); // uv^7 * (uv^15)^((p - 9) / 16)
 
     // Check against each of the roots of unity
+    let mut return_success = false;
+    let mut return_value = sqrt_candidate;
     let mut roots = roots_of_unity();
     for root in roots.iter_mut() {
         root.mul(&sqrt_candidate);
@@ -296,28 +297,28 @@ fn sqrt_division_fp2(u: &FP2, v: &FP2) -> (bool, FP2) {
         tmp1.sqr();
         tmp1.mul(&v);
         tmp1.sub(&u);
-        if tmp1.iszilch() {
-            return (true, *root);
+        if tmp1.iszilch() && !return_success {
+            return_success = true;
+            return_value = *root;
         }
     }
 
-    // No valid square roots found return: uv^7 * (uv^15)^((p - 9) / 16)
-    (false, sqrt_candidate)
+    (return_success, return_value)
 }
 
-// Setup the 4 roots of unity
+// Setup the 4 positive 8th roots of unity
 fn roots_of_unity() -> [FP2; 4] {
     let a = FP2::new_ints(1, 0);
     let b = FP2::new_ints(0, 1);
-    let c = FP2::new_fps(&SQRT_1, &SQRT_1);
-    let mut neg_sqrt_1 = SQRT_1.clone();
+    let c = FP2::new_fps(&SQRT_I, &SQRT_I);
+    let mut neg_sqrt_1 = SQRT_I.clone();
     neg_sqrt_1.neg();
-    let d = FP2::new_fps(&SQRT_1, &neg_sqrt_1);
+    let d = FP2::new_fps(&SQRT_I, &neg_sqrt_1);
 
     [a, b, c, d]
 }
 
-// Setup the four different roots of eta = sqrt(e^3 * (-1)^(1/4))
+// Setup the four different roots of eta = sqrt(e^3 * (-1)^(1 / 4))
 fn etas() -> [FP2; 4] {
     let a = FP2::new_fps(&EV1, &FP::new());
     let b = FP2::new_fps(&FP::new(), &EV1);
