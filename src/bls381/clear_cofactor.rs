@@ -61,7 +61,7 @@ pub fn clear_cofactor_psi(point: ECP2) -> ECP2 {
     temp1 // (x^2 - x - 1) P + (x - 1) psi(P) - psi(psi(2P))
 }
 
-// Returns -xP
+// Returns -xP = 15132376222941577216 * P
 fn psi_addition_chain(point: &ECP2) -> ECP2 {
     let mut x = point.clone();
 
@@ -76,7 +76,7 @@ fn psi_addition_chain(point: &ECP2) -> ECP2 {
     }
     x.add(&point); // 105
     for _ in 0..9 {
-        x.dbl(); // 53,760
+        x.dbl(); // 53760
     }
     x.add(&point); // 53761
     for _ in 0..32 {
