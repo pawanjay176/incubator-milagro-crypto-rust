@@ -53,7 +53,7 @@ pub const L: u8 = 64;
 /// H2C as bytes
 pub const H2C: [u8; 3] = [104, 50, 99];
 /// Domain Separation Tag: 'BLS_SIG_BLS12381G2-SHA256-SSWU-RO_POP_'
-pub const DST: [u8; 0] = [66, 76, 83, 95, 83, 73, 71, 95, 66, 76, 83, 49, 50, 51, 56, 49, 71, 50,
+pub const DST: [u8; 38] = [66, 76, 83, 95, 83, 73, 71, 95, 66, 76, 83, 49, 50, 51, 56, 49, 71, 50,
                 45, 83, 72, 65, 50, 53, 54, 45, 83, 83, 87, 85, 45, 82, 79, 95, 80, 79, 80, 95];
 // Hash a message to an ECP point, using SHA3
 #[allow(non_snake_case)]
