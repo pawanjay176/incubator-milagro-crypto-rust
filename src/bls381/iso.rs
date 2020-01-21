@@ -31,13 +31,15 @@ lazy_static! {
     // Curve parameters of ISO-3 y^2 = x^3 + ax + b
     pub static ref ISO3_A2: FP2 = FP2::new_ints(0, 240);
     pub static ref ISO3_B2: FP2 = FP2::new_ints(1012, 1012);
-    pub static ref ISO3_E2: FP2 = FP2::new_ints(1, 1);
+    pub static ref ISO3_E2: FP2 = FP2::new_ints(-2, -1);
 
     // Roots of unity and eta
     // TODO: Convert the following hex::decode() into [i64; NLEN] hence Big::from_ints() can be used
     pub static ref SQRT_I: FP = FP::new_big(&Big::frombytes(&hex::decode("06af0e0437ff400b6831e36d6bd17ffe48395dabc2d3435e77f76e17009241c5ee67992f72ec05f4c81084fbede3cc09").unwrap()));
-    pub static ref EV1: FP = FP::new_big(&Big::frombytes(&hex::decode("02c4a7244a026bd3e305cc456ad9e235ed85f8b53954258ec8186bb3d4eccef7c4ee7b8d4b9e063a6c88d0aa3e03ba01").unwrap()));
-    pub static ref EV2: FP = FP::new_big(&Big::frombytes(&hex::decode("085fa8cd9105715e641892a0f9a4bb2912b58b8d32f26594c60679cc7973076dc6638358daf3514d6426a813ae01f51a").unwrap()));
+    pub static ref EV1: FP = FP::new_big(&Big::frombytes(&hex::decode("0699be3b8c6870965e5bf892ad5d2cc7b0e85a117402dfd83b7f4a947e02d978498255a2aaec0ac627b5afbdf1bf1c90").unwrap()));
+    pub static ref EV2: FP = FP::new_big(&Big::frombytes(&hex::decode("08157cd83046453f5dd0972b6e3949e4288020b5b8a9cc99ca07e27089a2ce2436d965026adad3ef7baba37f2183e9b5").unwrap()));
+    pub static ref EV3: FP = FP::new_big(&Big::frombytes(&hex::decode("0ab1c2ffdd6c253ca155231eb3e71ba044fd562f6f72bc5bad5ec46a0b7a3b0247cf08ce6c6317f40edbc653a72dee17").unwrap()));
+    pub static ref EV4: FP = FP::new_big(&Big::frombytes(&hex::decode("0aa404866706722864480885d68ad0ccac1967c7544b447873cc37e0181271e006df72162a3d3e0287bf597fbf7f8fc1").unwrap()));
 
     // ISO-3 Mapping values
     pub static ref XNUM: [FP2; 4] = [
@@ -318,14 +320,17 @@ fn roots_of_unity() -> [FP2; 4] {
     [a, b, c, d]
 }
 
-// Setup the four different roots of eta = sqrt(e^3 * (-1)^(1 / 4))
+// Setup the four different roots of eta
+// For details see https://github.com/algorand/bls_sigs_ref/blob/master/sage-impl/opt_sswu_g2.sage
 fn etas() -> [FP2; 4] {
-    let a = FP2::new_fps(&EV1, &FP::new());
-    let b = FP2::new_fps(&FP::new(), &EV1);
-    let c = FP2::new_fps(&EV2, &EV2);
+    let a = FP2::new_fps(&EV1, &EV2);
     let mut negative_ev2 = EV2.clone();
     negative_ev2.neg();
-    let d = FP2::new_fps(&EV2, &negative_ev2);
+    let b = FP2::new_fps(&negative_ev2, &EV1);
+    let c = FP2::new_fps(&EV3, &EV4);
+    let mut negative_ev4 = EV4.clone();
+    negative_ev4.neg();
+    let d = FP2::new_fps(&negative_ev4, &EV3);
 
     [a, b, c, d]
 }
