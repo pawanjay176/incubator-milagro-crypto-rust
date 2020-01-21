@@ -305,7 +305,16 @@ impl DBig {
     // convert from byte array to DBig
     pub fn frombytes(b: &[u8]) -> DBig {
         let mut m = DBig::new();
-        for i in 0..(2 * MODBYTES as usize) {
+
+        // Restrict length
+        let max_dbig = 2 * MODBYTES;
+        let len = if b.len() >= max_dbig {
+            max_dbig as usize
+        } else {
+            b.len()
+        };
+
+        for i in 0..len {
             m.shl(8);
             m.w[0] += (b[i] & 0xff) as Chunk;
         }

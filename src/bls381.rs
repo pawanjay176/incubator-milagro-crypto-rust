@@ -116,8 +116,7 @@ pub fn verify(sig: &[u8], m: &str, w: &[u8]) -> isize {
 /// Hash to Curve
 ///
 /// Takes a message as input and converts it to a Curve Point
-/// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04
-// TODO: Update link when standard is finalised
+/// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
 pub fn hash_to_curve_g1() -> ECP {
     // TODO: Finish function
     ECP::new()
@@ -126,8 +125,7 @@ pub fn hash_to_curve_g1() -> ECP {
 // Hash To Base - FP
 //
 // Take a message as bytes and convert it to a Field Point
-// TODO: Update link when standard is finalised
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04#section-5.3
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
 fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
     let m_prime = HASH256::hkdf_extract(&DST, msg);
 
@@ -150,8 +148,7 @@ fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
 // Simplified SWU for Pairing-Friendly Curves
 //
 // Take a field point and map it to a Curve Point.
-// TODO: Update link when standard is finalised
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04#section-6.9.2
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-6.6.3
 fn map_to_curve_g1(u: FP) -> ECP {
     // TODO: Implement this for G1
     ECP::new()
@@ -163,8 +160,7 @@ fn map_to_curve_g1(u: FP) -> ECP {
 /// Hash to Curve
 ///
 /// Takes a message as input and converts it to a Curve Point
-/// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04
-// TODO: Update link when standard is finalised
+/// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
 pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
     let u0 = hash_to_base_g2(msg, 0);
     let u1 = hash_to_base_g2(msg, 1);
@@ -178,8 +174,7 @@ pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
 // Hash To Base - FP2
 //
 // Take a message as bytes and convert it to a Field Point with extension degree 2.
-// TODO: Update link when standard is finalised
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04#section-5.3
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
 fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
     let m_prime = HASH256::hkdf_extract(&DST, msg);
     let mut e = [Big::new(); 2];
@@ -205,8 +200,7 @@ fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
 // Simplified SWU for Pairing-Friendly Curves
 //
 // Take a field point and map it to a Curve Point.
-// TODO: Update link when standard is finalised
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-04#section-6.9.2
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-6.6.3
 fn map_to_curve_g2(u: FP2) -> ECP2 {
     let mut iso3 = ISO3_FP2::swu_optimised(u);
     iso3.iso3_to_ecp2()
