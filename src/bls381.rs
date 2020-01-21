@@ -176,7 +176,11 @@ pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
 // Take a message as bytes and convert it to a Field Point with extension degree 2.
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
 fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
-    let m_prime = HASH256::hkdf_extract(&DST, msg);
+    // Append 0x00 to msg
+    let mut msg: Vec<u8> = msg.to_vec();
+    msg.push(0);
+
+    let m_prime = HASH256::hkdf_extract(&DST, &msg);
     let mut e = [Big::new(); 2];
 
     for i in 1..=2 {
