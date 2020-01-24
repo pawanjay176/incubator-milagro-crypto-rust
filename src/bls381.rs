@@ -49,10 +49,9 @@ pub const BLS_FAIL: isize = -1;
 /// L = ciel(ciel(log2(Q) + 128) / 8)
 pub const L: u8 = 64;
 /// H2C as bytes
-pub const H2C: [u8; 3] = [104, 50, 99];
-/// Domain Separation Tag: 'BLS_SIG_BLS12381G2-SHA256-SSWU-RO-_POP_'
-pub const DST: [u8; 39] = [66, 76, 83, 95, 83, 73, 71, 95, 66, 76, 83, 49, 50, 51, 56, 49, 71, 50,
-45, 83, 72, 65, 50, 53, 54, 45, 83, 83, 87, 85, 45, 82, 79, 45, 95, 80, 79, 80, 95];
+pub const H2C: &[u8] = b"H2C";
+/// Domain Separation Tag
+pub const DST: &[u8] = b"BLS_SIG_BLS12381G2-SHA256-SSWU-RO-_POP_";
 
 // Hash a message to an ECP point, using SHA3
 #[allow(non_snake_case)]
@@ -127,7 +126,7 @@ pub fn hash_to_curve_g1() -> ECP {
 // Take a message as bytes and convert it to a Field Point
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
 fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
-    let m_prime = HASH256::hkdf_extract(&DST, msg);
+    let m_prime = HASH256::hkdf_extract(DST, msg);
 
     // Concatenate ("H2C" || I2OSP(ctr, 1) || I2OSP(i, 1))
     let mut info = H2C.to_vec();
@@ -180,7 +179,7 @@ fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
     let mut msg: Vec<u8> = msg.to_vec();
     msg.push(0);
 
-    let m_prime = HASH256::hkdf_extract(&DST, &msg);
+    let m_prime = HASH256::hkdf_extract(DST, &msg);
     let mut e = [Big::new(); 2];
 
     for i in 1..=2 {
