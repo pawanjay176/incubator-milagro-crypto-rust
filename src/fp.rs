@@ -40,13 +40,13 @@ impl PartialEq for FP {
 
 impl fmt::Display for FP {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FP: [ {} ]", self.x)
+        write!(f, "FP: [ {} ]", self.tostring())
     }
 }
 
 impl fmt::Debug for FP {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FP: [ {} ]", self.x)
+        write!(f, "FP: [ {} ]", self.tostring())
     }
 }
 
@@ -115,13 +115,11 @@ impl FP {
     }
 
     pub fn to_hex(&self) -> String {
-        let x = self.x;
-        let big = x.tostring();
-        format!("{} {}", self.xes, big)
+        format!("{} {}", self.xes, self.x.tostring())
     }
 
     /// convert back to regular form
-    pub fn redc(&mut self) -> Big {
+    pub fn redc(&self) -> Big {
         if MODTYPE != ModType::PseudoMersenne && MODTYPE != ModType::GeneralisedMersenne {
             let mut d = DBig::new_scopy(&(self.x));
             return FP::modulo(&mut d);
@@ -200,7 +198,7 @@ impl FP {
     }
 
     /// convert to string
-    pub fn tostring(&mut self) -> String {
+    pub fn tostring(&self) -> String {
         self.redc().tostring()
     }
 
@@ -425,7 +423,7 @@ impl FP {
     /// Return this^(p-3)/4 or this^(p-5)/8
     ///
     /// https://eprint.iacr.org/2018/1038
-    pub fn fpow(&mut self) -> FP {
+    pub fn fpow(&self) -> FP {
         let ac: [isize; 11] = [1, 2, 3, 6, 12, 15, 30, 60, 120, 240, 255];
         let mut xp: [FP; 11] = [
             FP::new(),
@@ -708,7 +706,7 @@ impl FP {
     }
 
     /// return jacobi symbol (this/Modulus)
-    pub fn jacobi(&mut self) -> isize {
+    pub fn jacobi(&self) -> isize {
         let p = Big::new_ints(&rom::MODULUS);
         let mut w = self.redc();
         return w.jacobi(&p);
