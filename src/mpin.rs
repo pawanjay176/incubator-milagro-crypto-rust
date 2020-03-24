@@ -351,7 +351,7 @@ pub fn recombine_g2(w1: &[u8], w2: &[u8], w: &mut [u8]) -> isize {
 /* create random secret S */
 pub fn random_generate(rng: &mut RAND, s: &mut [u8]) -> isize {
     let r = Big::new_ints(&rom::CURVE_ORDER);
-    let mut sc = Big::randomnum(&r, rng);
+    let sc = Big::randomnum(&r, rng);
     sc.tobytes(s);
     return 0;
 }

@@ -737,7 +737,7 @@ impl ECP2 {
             X.inverse();
             X.norm();
         }
-        let mut x = Big::new_ints(&rom::CURVE_BNX);
+        let x = Big::new_ints(&rom::CURVE_BNX);
 
         if ecp::CURVE_PAIRING_TYPE == CurvePairingType::Bn {
             let mut T = self.mul(&x);

@@ -33,7 +33,7 @@ use super::fp::FP;
 use super::fp2::FP2;
 use super::pair;
 use super::rom;
-use self::iso::ISO3_FP2;
+use self::iso::Iso3Fp2;
 use hash256::HASH256;
 use std::str;
 use rand::RAND;
@@ -71,7 +71,7 @@ fn bls_hashit(m: &str) -> ECP {
 pub fn key_pair_generate(mut rng: &mut RAND, s: &mut [u8], w: &mut [u8]) -> isize {
     let q = Big::new_ints(&rom::CURVE_ORDER);
     let g = ECP2::generator();
-    let mut sc = Big::randomnum(&q, &mut rng);
+    let sc = Big::randomnum(&q, &mut rng);
     sc.tobytes(s);
     pair::g2mul(&g, &sc).tobytes(w);
     BLS_OK
@@ -148,7 +148,7 @@ fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
 //
 // Take a field point and map it to a Curve Point.
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-6.6.3
-fn map_to_curve_g1(u: FP) -> ECP {
+fn map_to_curve_g1(_u: FP) -> ECP {
     // TODO: Implement this for G1
     ECP::new()
 }
@@ -205,7 +205,7 @@ fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
 // Take a field point and map it to a Curve Point.
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-6.6.3
 fn map_to_curve_g2(u: FP2) -> ECP2 {
-    let mut iso3 = ISO3_FP2::swu_optimised(u);
+    let mut iso3 = Iso3Fp2::swu_optimised(u);
     iso3.iso3_to_ecp2()
 }
 
@@ -305,8 +305,8 @@ mod tests {
             let mut u1 = FP2::new_bigs(&a, &b);
 
             // Map to Curve
-            let mut iso3_0 = ISO3_FP2::swu_optimised(u0);
-            let mut iso3_1 = ISO3_FP2::swu_optimised(u1);
+            let mut iso3_0 = Iso3Fp2::swu_optimised(u0);
+            let mut iso3_1 = Iso3Fp2::swu_optimised(u1);
 
             // 3-Isogeny Map
             let mut q0 = iso3_0.iso3_to_ecp2();

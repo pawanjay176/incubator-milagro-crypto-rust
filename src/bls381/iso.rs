@@ -108,18 +108,18 @@ lazy_static! {
 }
 
 /// 3-Isogeny Curve for Mapping to BLS12-381 extension ECP2
-pub struct ISO3_FP2 {
+pub struct Iso3Fp2 {
     pub x: FP2,
     pub y: FP2,
     pub z: FP2,
 }
 
-impl ISO3_FP2 {
+impl Iso3Fp2 {
     /// Optimised Shallue-van de Woestijne-Ulas Method
     ///
     /// Adjusted https://eprint.iacr.org/2019/403
     /// such that projectives are (XZ, YZ, Z)
-    pub fn swu_optimised(t: FP2) -> ISO3_FP2 {
+    pub fn swu_optimised(t: FP2) -> Iso3Fp2 {
         let mut t2 = t.clone(); // t
         let is_neg_t = t2.is_neg(); // store for later
         t2.sqr(); // t^2 (store for later)
@@ -160,7 +160,7 @@ impl ISO3_FP2 {
         u.add(&tmp2); // u = num^3 + a * num * den^2
 
         tmp1.mul(&x_denominator); // den^3
-        let mut v = tmp1.clone(); // den^3
+        let v = tmp1.clone(); // den^3
         tmp1.mul(&ISO3_B2); // b * den^3
         u.add(&tmp1); // u = num^3 + a * num * den^2 + b * den^3
 
@@ -210,7 +210,7 @@ impl ISO3_FP2 {
         // X = x-num; Y = y * x-den; Z = x-den
         y.mul(&x_denominator);
 
-        ISO3_FP2 {
+        Iso3Fp2 {
             x: x_numerator,
             y: y,
             z: x_denominator,
