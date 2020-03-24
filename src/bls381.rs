@@ -46,12 +46,18 @@ pub const BGS: usize = big::MODBYTES as usize;
 pub const BLS_OK: isize = 0;
 pub const BLS_FAIL: isize = -1;
 
-/// L = ciel(ciel(log2(Q) + 128) / 8)
-pub const L: u8 = 64;
+/// L = ceil(ceil(log2(Q) + 128) / 8)
+pub const L: usize = 64;
+/// b_in_bytes = ceil(b / 8), where b is bits outputted from SHA256
+pub const B_IN_BYTES: usize = 32;
 /// H2C as bytes
 pub const H2C: &[u8] = b"H2C";
 /// Domain Separation Tag
-pub const DST: &[u8] = b"BLS_SIG_BLS12381G2-SHA256-SSWU-RO-_POP_";
+pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+/// DST_PRIME[0] = DST.len() = 43 (ASCII '+')
+pub const DST_PRIME: &[u8] = b"+BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+/// Z_PAD is a vector of zeros of length equal to the hash block size (64).
+pub const Z_PAD: [u8; 64] = [0u8; 64];
 
 // Hash a message to an ECP point, using SHA3
 #[allow(non_snake_case)]
@@ -116,32 +122,35 @@ pub fn verify(sig: &[u8], m: &str, w: &[u8]) -> isize {
 ///
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
-pub fn hash_to_curve_g1() -> ECP {
+pub fn hash_to_curve_g1(msg: &[u8]) -> ECP {
+    let u = hash_to_field_g1(msg, 2);
     // TODO: Finish function
-    ECP::new()
+    let mut q0 = map_to_curve_g1(u[0]);
+    let q1 = map_to_curve_g1(u[1]);
+    q0.add(&q1);
+    //q0.clear_cofactor();
+    q0
 }
 
 // Hash To Base - FP
 //
 // Take a message as bytes and convert it to a Field Point
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
-fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
-    let m_prime = HASH256::hkdf_extract(DST, msg);
-
-    // Concatenate ("H2C" || I2OSP(ctr, 1) || I2OSP(i, 1))
-    let mut info = H2C.to_vec();
-    info.push(ctr);
-    info.push(1);
-
-    // Hash and extract to t
-    let t = HASH256::hkdf_extend(&m_prime, &info, L);
-
-    // Convert t to an integer and modulate
-    let mut e_1 = DBig::frombytes(&t);
+fn hash_to_field_g1(msg: &[u8], count: usize) -> Vec<FP> {
+    let m = 1;
     let p = Big::new_ints(&rom::MODULUS);
-    let e_1 = e_1.dmod(&p);
 
-    FP::new_big(&e_1)
+    let len_in_bytes = count * m * L;
+    let pseudo_random_bytes = expand_message_xmd(msg, len_in_bytes);
+
+    let mut u: Vec<FP> = Vec::with_capacity(count as usize);
+    for i in 0..count as usize {
+        let elm_offset = L as usize * i * m as usize;
+        let mut dbig = DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
+        let e: Big = dbig.dmod(&p);
+        u.push(FP::new_big(&e));
+    }
+    u
 }
 
 // Simplified SWU for Pairing-Friendly Curves
@@ -150,6 +159,7 @@ fn hash_to_base_g1(msg: &[u8], ctr: u8) -> FP {
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-6.6.3
 fn map_to_curve_g1(_u: FP) -> ECP {
     // TODO: Implement this for G1
+    assert!(false, "function not implemented");
     ECP::new()
 }
 
@@ -161,43 +171,105 @@ fn map_to_curve_g1(_u: FP) -> ECP {
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
 pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
-    let u0 = hash_to_base_g2(msg, 0);
-    let u1 = hash_to_base_g2(msg, 1);
-    let mut q0 = map_to_curve_g2(u0);
-    let q1 = map_to_curve_g2(u1);
+    let u = hash_to_field_g2(msg, 2);
+    let mut q0 = map_to_curve_g2(u[0]);
+    let q1 = map_to_curve_g2(u[1]);
     q0.add(&q1);
     q0.clear_cofactor();
     q0
 }
 
-// Hash To Base - FP2
+// Hash To Field - Fp2
 //
-// Take a message as bytes and convert it to a Field Point with extension degree 2.
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
-fn hash_to_base_g2(msg: &[u8], ctr: u8) -> FP2 {
-    // Append 0x00 to msg
-    let mut msg: Vec<u8> = msg.to_vec();
-    msg.push(0);
+// Take a message as bytes and convert it to a vector of Field Points with extension degree 2.
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
+fn hash_to_field_g2(msg: &[u8], count: usize) -> Vec<FP2> {
+    let m = 2;
+    let p = Big::new_ints(&rom::MODULUS);
 
-    let m_prime = HASH256::hkdf_extract(DST, &msg);
-    let mut e = [Big::new(); 2];
+    let len_in_bytes = count * m * L;
+    let pseudo_random_bytes = expand_message_xmd(msg, len_in_bytes);
 
-    for i in 1..=2 {
-        // Concatenate ("H2C" || I2OSP(ctr, 1) || I2OSP(i, 1))
-        let mut info = H2C.to_vec();
-        info.push(ctr);
-        info.push(i);
+    let mut u: Vec<FP2> = Vec::with_capacity(count as usize);
+    for i in 0..count as usize {
+        let mut e: Vec<Big> = Vec::with_capacity(m as usize);
+        for j in 0..m as usize {
+            let elm_offset = L as usize * (j + i * m as usize);
+            let mut big = DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
+            e.push(big.dmod(&p));
+        }
+        u.push(FP2::new_bigs(&e[0], &e[1]));
+    }
+    u
+}
 
-        // Hash and extract to t
-        let t = HASH256::hkdf_extend(&m_prime, &info, L);
+// Expand Message XMD
+//
+// Take a message and convert it to pseudo random bytes of specified length
+// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.3.1
+fn expand_message_xmd(msg: &[u8], len_in_bytes: usize) -> Vec<u8> {
+    // ell = ceiling(len_in_bytes / b_in_bytes)
+    let ceiling = if len_in_bytes % B_IN_BYTES == 0 {
+        0
+    } else {
+        1
+    };
+    let ell = len_in_bytes / B_IN_BYTES + ceiling;
 
-        // Convert t to an integer and modulate
-        let mut e_i = DBig::frombytes(&t);
-        let p = Big::new_ints(&rom::MODULUS);
-        e[i as usize - 1] = e_i.dmod(&p);
+
+    // TODO: Confirm panic is correct behaviour
+    assert!(
+        ell > 255,
+        "expand_message_xmd ell too large {}", ell
+    );
+
+    // Set tmp to (Z_pad || msg || l_i_b_str || I2OSP(0, 1) || DST_prime)
+    let mut tmp = Z_PAD.to_vec();
+    tmp.extend_from_slice(msg);
+    let l_i_b_str: &[u8] = &len_in_bytes.to_be_bytes()[2..];
+    tmp.extend_from_slice(l_i_b_str);
+    tmp.push(0u8);
+    tmp.extend_from_slice(DST_PRIME);
+
+    let mut b: Vec<Vec<u8>> = vec![vec![]];
+    let mut pseudo_random_bytes: Vec<u8> = vec![];
+
+    let mut hash256 = HASH256::new();
+    hash256.init();
+    hash256.process_array(&tmp);
+    b[0] = hash256.hash().to_vec();
+
+    // Set tmp to (b_0 || I2OSP(1, 1) || DST_prime)
+    tmp = b[0].clone();
+    tmp.push(1u8);
+    tmp.extend_from_slice(DST_PRIME);
+
+    let mut hash256 = HASH256::new();
+    hash256.init();
+    hash256.process_array(&tmp);
+    b[1] = hash256.hash().to_vec();
+    pseudo_random_bytes.extend_from_slice(&b[1]);
+
+    for i in 2..=ell {
+        // Set tmp to (strxor(b_0, b_(i - 1)) || I2OSP(i, 1) || DST_prime)
+        tmp = b[0].iter().enumerate().map(|(j, b_0)| {
+                // Perform strxor(b[0], b[i-1])
+                b_0 ^ b[i-1][j] // b[i].len() will all be 32 bytes as they are SHA256 output.
+            }
+        ).collect();
+        tmp.push(i as u8); // i < 255
+        tmp.extend_from_slice(DST_PRIME);
+
+        let mut hash256 = HASH256::new();
+        hash256.init();
+        hash256.process_array(&tmp);
+        b.push(hash256.hash().to_vec());
+
+        pseudo_random_bytes.extend_from_slice(&b[i]);
     }
 
-    FP2::new_bigs(&e[0], &e[1])
+    // Take required length
+    pseudo_random_bytes[..len_in_bytes as usize].to_vec()
 }
 
 // Simplified SWU for Pairing-Friendly Curves

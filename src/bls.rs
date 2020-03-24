@@ -54,7 +54,7 @@ fn bls_hashit(m: &str) -> ECP {
 pub fn key_pair_generate(mut rng: &mut RAND, s: &mut [u8], w: &mut [u8]) -> isize {
     let q = Big::new_ints(&rom::CURVE_ORDER);
     let g = ECP2::generator();
-    let mut sc = Big::randomnum(&q, &mut rng);
+    let sc = Big::randomnum(&q, &mut rng);
     sc.tobytes(s);
     pair::g2mul(&g, &sc).tobytes(w);
     BLS_OK
