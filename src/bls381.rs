@@ -165,7 +165,7 @@ mod tests {
     // Format: [(input, output)]
     // input: [u0_a, u0_b, u1_a, u1_b]
     // output: [x_a, x_b, y_a, y_b]
-    pub const TESTS: [([&str; 4], [&str; 4]); 3] =
+    pub const TESTS: [([&str; 4], [&str; 4]); 4] =
         [
             // Test 0
             (
@@ -202,7 +202,6 @@ mod tests {
                 ]
             ),
             // Test 2
-            /*
             (
                 // Input
                 [
@@ -213,13 +212,12 @@ mod tests {
                 ],
                 // Output
                 [
-                    "1063d10c6a6eb081e7c64df360c4b30105214e36651f1d9b96a8be06850b0271d280911027c01ba6121d3150efdf1f90",
-                    "10f0c3a6591e86bbafccbc8a6f0d39cf9db340df0ca87e5454370a75dc9283cf3e4028492612ed7f15c1d7f850c73848",
-                    "126d09223e5b0de4b3d848f0679d3b38a15256811e09fa35ea0cee94a6380285e2c3592424aa3c7a083129251d5d7b54",
-                    "02b874326f760b68d79791620b0a8921b86a988411c80db0035588b8eb9a11f8e83bfd2502e6313ec77d074edf969874"
+                    "19da1b4d47efeeb154f8968b43da2125376e0999ba722141419b03fd857490562fa42a5d0973956d1932dd20c1e0a284",
+                    "18426da25dadd359adfda64fbaddac4414da2a841cb467935289877db450fac424361efb2e7fb141b7b98e6b2f888aef",
+                    "0c2f8d431770d9be9b087c36fc5b66bb83ce6372669f48294193ef646105e0f21d17b134e7d1ad9c18f54b81f6a3707b",
+                    "03257c3be77016e69b75905a97871008a6dfd2e324a6748c48d3304380156987bd0905991824936fcfe34ab25c3b6caa"
                 ]
             ),
-            */
             // Test 3
             (
                 // Input
@@ -242,6 +240,11 @@ mod tests {
 
     #[test]
     fn test_map_to_curve_g2() {
+        // Only run when signatures are on G2
+        if BLS_SIG_G1 {
+            return;
+        }
+
         for test in &TESTS {
             // Input u0 and u1
             let a = Big::frombytes(&hex::decode(test.0[0]).unwrap());

@@ -138,6 +138,7 @@ impl Iso3Fp2 {
         let mut x_denominator: FP2;
         // Deal with case where e^2 * t^4 + e * t^2 == 0
         if common.iszilch() {
+            x_numerator = ISO3_B2.clone(); // numerator = b
             x_denominator = ISO3_E2.clone();
             x_denominator.mul(&ISO3_A2); // denominator = e * a
         } else {
