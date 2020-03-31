@@ -18,7 +18,7 @@ under the License.
 */
 
 use super::super::arch::Chunk;
-use super::hash_to_field::HashAlgorithm;
+use super::hash_to_curve::HashAlgorithm;
 use bls381g1::big::NLEN;
 use types::{CurvePairingType, CurveType, ModType, SexticTwist, SignOfX};
 

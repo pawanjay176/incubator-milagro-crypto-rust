@@ -32,7 +32,7 @@ use super::fp::FP;
 use super::fp2::FP2;
 use super::pair;
 use super::rom::*;
-use super::hash_to_field::*;
+use super::hash_to_curve::*;
 use self::iso::Iso3Fp2;
 
 use std::str;
