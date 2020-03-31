@@ -1,6 +1,12 @@
 #[macro_use]
 extern crate lazy_static;
 
+#[cfg(test)]
+extern crate serde_json;
+#[cfg(test)]
+#[macro_use]
+extern crate serde_derive;
+
 pub mod aes;
 #[cfg(target_pointer_width = "32")]
 #[path = "arch/arch32.rs"]
@@ -8,6 +14,7 @@ pub mod arch;
 #[cfg(target_pointer_width = "64")]
 #[path = "arch/arch64.rs"]
 pub mod arch;
+pub mod errors;
 pub mod gcm;
 pub mod hash256;
 pub mod hash384;
@@ -88,14 +95,14 @@ pub mod bls383 {
     pub mod pair;
 }
 
-#[cfg(feature = "bls381")]
+#[cfg(feature = "bls381g1")]
 #[path = "./"]
-pub mod bls381 {
+pub mod bls381g1 {
     #[cfg(target_pointer_width = "32")]
-    #[path = "roms/rom_bls381_32.rs"]
+    #[path = "roms/rom_bls381g1_32.rs"]
     pub mod rom;
     #[cfg(target_pointer_width = "64")]
-    #[path = "roms/rom_bls381_64.rs"]
+    #[path = "roms/rom_bls381g1_64.rs"]
     pub mod rom;
 
     pub mod big;
@@ -109,6 +116,31 @@ pub mod bls381 {
     pub mod fp4;
     pub mod mpin;
     pub mod pair;
+    pub mod hash_to_field;
+}
+
+#[cfg(feature = "bls381g2")]
+#[path = "./"]
+pub mod bls381g2 {
+    #[cfg(target_pointer_width = "32")]
+    #[path = "roms/rom_bls381g2_32.rs"]
+    pub mod rom;
+    #[cfg(target_pointer_width = "64")]
+    #[path = "roms/rom_bls381g2_64.rs"]
+    pub mod rom;
+
+    pub mod big;
+    pub mod bls381;
+    pub mod dbig;
+    pub mod ecp;
+    pub mod ecp2;
+    pub mod fp;
+    pub mod fp12;
+    pub mod fp2;
+    pub mod fp4;
+    pub mod mpin;
+    pub mod pair;
+    pub mod hash_to_field;
 }
 
 #[cfg(feature = "fp512bn")]

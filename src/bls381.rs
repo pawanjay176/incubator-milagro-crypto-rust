@@ -21,10 +21,10 @@ under the License.
 ///
 /// An implementation of BLS12-381 as specified by the following standard:
 /// https://github.com/cfrg/draft-irtf-cfrg-bls-signature
+
 pub mod iso;
 pub mod sqrt_division_chain;
 
-use super::big;
 use super::big::Big;
 use super::dbig::DBig;
 use super::ecp::ECP;
@@ -32,32 +32,21 @@ use super::ecp2::ECP2;
 use super::fp::FP;
 use super::fp2::FP2;
 use super::pair;
-use super::rom;
+use super::rom::*;
+use super::hash_to_field::*;
 use self::iso::Iso3Fp2;
-use hash256::HASH256;
+
+use errors::AmclError;
 use std::str;
 use rand::RAND;
 use sha3::SHA3;
 use sha3::SHAKE256;
 
 // BLS API Functions
-pub const BFS: usize = big::MODBYTES as usize;
-pub const BGS: usize = big::MODBYTES as usize;
+pub const BFS: usize = MODBYTES as usize;
+pub const BGS: usize = MODBYTES as usize;
 pub const BLS_OK: isize = 0;
 pub const BLS_FAIL: isize = -1;
-
-/// L = ceil(ceil(log2(Q) + 128) / 8)
-pub const L: usize = 64;
-/// b_in_bytes = ceil(b / 8), where b is bits outputted from SHA256
-pub const B_IN_BYTES: usize = 32;
-/// H2C as bytes
-pub const H2C: &[u8] = b"H2C";
-/// Domain Separation Tag
-pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
-/// DST_PRIME[0] = DST.len() = 43 (ASCII '+')
-pub const DST_PRIME: &[u8] = b"+BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
-/// Z_PAD is a vector of zeros of length equal to the hash block size (64).
-pub const Z_PAD: [u8; 64] = [0u8; 64];
 
 // Hash a message to an ECP point, using SHA3
 #[allow(non_snake_case)]
@@ -75,7 +64,7 @@ fn bls_hashit(m: &str) -> ECP {
 
 /// Generate key pair, private key s, public key w
 pub fn key_pair_generate(mut rng: &mut RAND, s: &mut [u8], w: &mut [u8]) -> isize {
-    let q = Big::new_ints(&rom::CURVE_ORDER);
+    let q = Big::new_ints(&CURVE_ORDER);
     let g = ECP2::generator();
     let sc = Big::randomnum(&q, &mut rng);
     sc.tobytes(s);
@@ -122,35 +111,14 @@ pub fn verify(sig: &[u8], m: &str, w: &[u8]) -> isize {
 ///
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
-pub fn hash_to_curve_g1(msg: &[u8]) -> ECP {
-    let u = hash_to_field_g1(msg, 2);
+pub fn hash_to_curve_g1(msg: &[u8]) -> Result<ECP, AmclError> {
+    let u = hash_to_field_fp(msg, 2, DST)?;
     // TODO: Finish function
     let mut q0 = map_to_curve_g1(u[0]);
     let q1 = map_to_curve_g1(u[1]);
     q0.add(&q1);
     //q0.clear_cofactor();
-    q0
-}
-
-// Hash To Base - FP
-//
-// Take a message as bytes and convert it to a Field Point
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05#section-5.3
-fn hash_to_field_g1(msg: &[u8], count: usize) -> Vec<FP> {
-    let m = 1;
-    let p = Big::new_ints(&rom::MODULUS);
-
-    let len_in_bytes = count * m * L;
-    let pseudo_random_bytes = expand_message_xmd(msg, len_in_bytes);
-
-    let mut u: Vec<FP> = Vec::with_capacity(count as usize);
-    for i in 0..count as usize {
-        let elm_offset = L as usize * i * m as usize;
-        let mut dbig = DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
-        let e: Big = dbig.dmod(&p);
-        u.push(FP::new_big(&e));
-    }
-    u
+    Ok(q0)
 }
 
 // Simplified SWU for Pairing-Friendly Curves
@@ -170,106 +138,13 @@ fn map_to_curve_g1(_u: FP) -> ECP {
 ///
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
-pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
-    let u = hash_to_field_g2(msg, 2);
+pub fn hash_to_curve_g2(msg: &[u8]) -> Result<ECP2, AmclError> {
+    let u = hash_to_field_fp2(msg, 2, DST)?;
     let mut q0 = map_to_curve_g2(u[0]);
     let q1 = map_to_curve_g2(u[1]);
     q0.add(&q1);
     q0.clear_cofactor();
-    q0
-}
-
-// Hash To Field - Fp2
-//
-// Take a message as bytes and convert it to a vector of Field Points with extension degree 2.
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.2
-fn hash_to_field_g2(msg: &[u8], count: usize) -> Vec<FP2> {
-    let m = 2;
-    let p = Big::new_ints(&rom::MODULUS);
-
-    let len_in_bytes = count * m * L;
-    let pseudo_random_bytes = expand_message_xmd(msg, len_in_bytes);
-
-    let mut u: Vec<FP2> = Vec::with_capacity(count as usize);
-    for i in 0..count as usize {
-        let mut e: Vec<Big> = Vec::with_capacity(m as usize);
-        for j in 0..m as usize {
-            let elm_offset = L as usize * (j + i * m as usize);
-            let mut big = DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
-            e.push(big.dmod(&p));
-        }
-        u.push(FP2::new_bigs(&e[0], &e[1]));
-    }
-    u
-}
-
-// Expand Message XMD
-//
-// Take a message and convert it to pseudo random bytes of specified length
-// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.3.1
-fn expand_message_xmd(msg: &[u8], len_in_bytes: usize) -> Vec<u8> {
-    // ell = ceiling(len_in_bytes / b_in_bytes)
-    let ceiling = if len_in_bytes % B_IN_BYTES == 0 {
-        0
-    } else {
-        1
-    };
-    let ell = len_in_bytes / B_IN_BYTES + ceiling;
-
-
-    // TODO: Confirm panic is correct behaviour
-    assert!(
-        ell > 255,
-        "expand_message_xmd ell too large {}", ell
-    );
-
-    // Set tmp to (Z_pad || msg || l_i_b_str || I2OSP(0, 1) || DST_prime)
-    let mut tmp = Z_PAD.to_vec();
-    tmp.extend_from_slice(msg);
-    let l_i_b_str: &[u8] = &len_in_bytes.to_be_bytes()[2..];
-    tmp.extend_from_slice(l_i_b_str);
-    tmp.push(0u8);
-    tmp.extend_from_slice(DST_PRIME);
-
-    let mut b: Vec<Vec<u8>> = vec![vec![]];
-    let mut pseudo_random_bytes: Vec<u8> = vec![];
-
-    let mut hash256 = HASH256::new();
-    hash256.init();
-    hash256.process_array(&tmp);
-    b[0] = hash256.hash().to_vec();
-
-    // Set tmp to (b_0 || I2OSP(1, 1) || DST_prime)
-    tmp = b[0].clone();
-    tmp.push(1u8);
-    tmp.extend_from_slice(DST_PRIME);
-
-    let mut hash256 = HASH256::new();
-    hash256.init();
-    hash256.process_array(&tmp);
-    b[1] = hash256.hash().to_vec();
-    pseudo_random_bytes.extend_from_slice(&b[1]);
-
-    for i in 2..=ell {
-        // Set tmp to (strxor(b_0, b_(i - 1)) || I2OSP(i, 1) || DST_prime)
-        tmp = b[0].iter().enumerate().map(|(j, b_0)| {
-                // Perform strxor(b[0], b[i-1])
-                b_0 ^ b[i-1][j] // b[i].len() will all be 32 bytes as they are SHA256 output.
-            }
-        ).collect();
-        tmp.push(i as u8); // i < 255
-        tmp.extend_from_slice(DST_PRIME);
-
-        let mut hash256 = HASH256::new();
-        hash256.init();
-        hash256.process_array(&tmp);
-        b.push(hash256.hash().to_vec());
-
-        pseudo_random_bytes.extend_from_slice(&b[i]);
-    }
-
-    // Take required length
-    pseudo_random_bytes[..len_in_bytes as usize].to_vec()
+    Ok(q0)
 }
 
 // Simplified SWU for Pairing-Friendly Curves
@@ -284,6 +159,7 @@ fn map_to_curve_g2(u: FP2) -> ECP2 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_utils::*;
 
     // The following tests were exported from
     // https://github.com/kwantam/bls_sigs_ref/tree/master/python-impl
@@ -371,10 +247,10 @@ mod tests {
             // Input u0 and u1
             let a = Big::frombytes(&hex::decode(test.0[0]).unwrap());
             let b = Big::frombytes(&hex::decode(test.0[1]).unwrap());
-            let mut u0 = FP2::new_bigs(&a, &b);
+            let u0 = FP2::new_bigs(&a, &b);
             let a = Big::frombytes(&hex::decode(test.0[2]).unwrap());
             let b = Big::frombytes(&hex::decode(test.0[3]).unwrap());
-            let mut u1 = FP2::new_bigs(&a, &b);
+            let u1 = FP2::new_bigs(&a, &b);
 
             // Map to Curve
             let mut iso3_0 = Iso3Fp2::swu_optimised(u0);
@@ -395,9 +271,91 @@ mod tests {
             let a = Big::frombytes(&hex::decode(test.1[2]).unwrap());
             let b = Big::frombytes(&hex::decode(test.1[3]).unwrap());
             let check_y = FP2::new_bigs(&a, &b);
-            let mut check_e = ECP2::new_fp2s(&check_x, &check_y);
+            let check_e = ECP2::new_fp2s(&check_x, &check_y);
 
             assert!(q0.equals(&check_e));
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "bls381g2")]
+    fn test_hash_to_curve_g2() {
+        // Only run when signatures are on G2
+        if !BLS_SIG_G1 {
+            return;
+        }
+
+        // Read hash to curve test vector
+        let reader = json_reader(H2C_SUITE);
+        let test_vectors: Bls12381G2 = serde_json::from_reader(reader).unwrap();
+
+        // Iterate through each individual case
+        for case in test_vectors.vectors {
+            // Execute hash to curve
+            let u = hash_to_field_fp2(case.msg.as_bytes(), 2, test_vectors.dst.as_bytes()).unwrap();
+            let q0 = map_to_curve_g2(u[0]);
+            let q1 = map_to_curve_g2(u[1]);
+            let mut r = q0.clone();
+            r.add(&q1);
+            let mut p = r.clone();
+            p.clear_cofactor();
+
+            // Verify hash to curve outputs
+            // Check u
+            assert_eq!(case.u.len(), u.len());
+            for (i, u_str) in case.u.iter().enumerate() {
+                // Convert case 'u[i]' to FP2
+                let u_str_parts: Vec<&str> = u_str.split(',').collect();
+                let a = Big::frombytes(&hex::decode(&u_str_parts[0].get(2..).unwrap()).unwrap());
+                let b = Big::frombytes(&hex::decode(&u_str_parts[1].get(2..).unwrap()).unwrap());
+                let expected_u_i = FP2::new_bigs(&a, &b);
+
+                // Verify u[i]
+                assert_eq!(expected_u_i, u[i]);
+            }
+
+            // Check Q0
+            let x_str_parts: Vec<&str> = case.Q0.x.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&x_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&x_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_x = FP2::new_bigs(&a, &b);
+
+            let y_str_parts: Vec<&str> = case.Q0.y.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&y_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&y_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_y = FP2::new_bigs(&a, &b);
+
+            let expected_q0 = ECP2::new_fp2s(&expected_x, &expected_y);
+            assert_eq!(expected_q0, q0);
+
+            // Check Q1
+            let x_str_parts: Vec<&str> = case.Q1.x.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&x_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&x_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_x = FP2::new_bigs(&a, &b);
+
+            let y_str_parts: Vec<&str> = case.Q1.y.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&y_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&y_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_y = FP2::new_bigs(&a, &b);
+
+            let expected_q1 = ECP2::new_fp2s(&expected_x, &expected_y);
+            assert_eq!(expected_q1, q1);
+
+
+            // Check P
+            let x_str_parts: Vec<&str> = case.P.x.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&x_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&x_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_x = FP2::new_bigs(&a, &b);
+
+            let y_str_parts: Vec<&str> = case.P.y.split(',').collect();
+            let a = Big::frombytes(&hex::decode(&y_str_parts[0].get(2..).unwrap()).unwrap());
+            let b = Big::frombytes(&hex::decode(&y_str_parts[1].get(2..).unwrap()).unwrap());
+            let expected_y = FP2::new_bigs(&a, &b);
+
+            let expected_p = ECP2::new_fp2s(&expected_x, &expected_y);
+            assert_eq!(expected_p, p);
         }
     }
 }

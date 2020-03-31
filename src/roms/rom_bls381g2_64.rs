@@ -18,7 +18,8 @@ under the License.
 */
 
 use super::super::arch::Chunk;
-use bls381::big::NLEN;
+use super::hash_to_field::HashAlgorithm;
+use bls381g2::big::NLEN;
 use types::{CurvePairingType, CurveType, ModType, SexticTwist, SignOfX};
 
 // Base Bits= 58
@@ -207,5 +208,21 @@ pub const CURVE_PAIRING_TYPE: CurvePairingType = CurvePairingType::Bls;
 pub const SEXTIC_TWIST: SexticTwist = SexticTwist::MType;
 pub const ATE_BITS: usize = 65;
 pub const SIGN_OF_X: SignOfX = SignOfX::NegativeX;
-pub const HASH_TYPE: usize = 32;
+pub const HASH_ALGORITHM: HashAlgorithm = HashAlgorithm::Sha256; // Hash algorithm for hash to curve
+pub const HASH_TYPE: usize = 32; // Output size of hash algorithm
 pub const AESKEY: usize = 16;
+
+/// Signatures on G1: true, Signatures on G2: false
+pub const BLS_SIG_G1: bool = false;
+
+// BLS Standard Constants
+/// L = ceil(ceil(log2(Q) + 128) / 8)
+pub const L: usize = 64;
+/// b_in_bytes = ceil(b / 8), where b is bits outputted from SHA256
+pub const B_IN_BYTES: usize = 32;
+/// Hash to Curve Suite
+pub const H2C_SUITE: &str = "BLS12381G2_XMD:SHA-256_SSWU_RO_";
+/// Domain Separation Tag
+pub const DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_";
+/// Z_PAD is a vector of zeros of length equal to the hash block size (64).
+pub const Z_PAD: [u8; 64] = [0u8; 64];
