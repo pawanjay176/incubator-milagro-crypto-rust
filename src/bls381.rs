@@ -26,7 +26,6 @@ pub mod iso;
 pub mod sqrt_division_chain;
 
 use super::big::Big;
-use super::dbig::DBig;
 use super::ecp::ECP;
 use super::ecp2::ECP2;
 use super::fp::FP;
@@ -281,7 +280,7 @@ mod tests {
     #[cfg(feature = "bls381g2")]
     fn test_hash_to_curve_g2() {
         // Only run when signatures are on G2
-        if !BLS_SIG_G1 {
+        if BLS_SIG_G1 {
             return;
         }
 
