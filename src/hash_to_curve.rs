@@ -2,13 +2,12 @@ use super::big::Big;
 use super::dbig::DBig;
 use super::fp::FP;
 use super::fp2::FP2;
-use super::rom::{HASH_TYPE, HASH_ALGORITHM, L, MODULUS, Z_PAD};
+use super::rom::{HASH_ALGORITHM, HASH_TYPE, L, MODULUS, Z_PAD};
 
-
+use errors::AmclError;
 use hash256::HASH256;
 use hash384::HASH384;
 use hash512::HASH512;
-use errors::AmclError;
 
 /// Oversized DST padding
 pub const OVERSIZED_DST: &[u8] = b"H2C-OVERSIZE-DST-";
@@ -28,13 +27,13 @@ pub fn hash(msg: &[u8], hash_function: HashAlgorithm) -> Vec<u8> {
             hash.init();
             hash.process_array(msg);
             hash.hash().to_vec()
-        },
+        }
         HashAlgorithm::Sha384 => {
             let mut hash = HASH384::new();
             hash.init();
             hash.process_array(msg);
             hash.hash().to_vec()
-        },
+        }
         HashAlgorithm::Sha512 => {
             let mut hash = HASH512::new();
             hash.init();
@@ -82,7 +81,8 @@ pub fn hash_to_field_fp2(msg: &[u8], count: usize, dst: &[u8]) -> Result<Vec<FP2
         let mut e: Vec<Big> = Vec::with_capacity(m as usize);
         for j in 0..m as usize {
             let elm_offset = L as usize * (j + i * m as usize);
-            let mut big = DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
+            let mut big =
+                DBig::frombytes(&pseudo_random_bytes[elm_offset..elm_offset + L as usize]);
             e.push(big.dmod(&p));
         }
         u.push(FP2::new_bigs(&e[0], &e[1]));
@@ -94,9 +94,14 @@ pub fn hash_to_field_fp2(msg: &[u8], count: usize, dst: &[u8]) -> Result<Vec<FP2
 //
 // Take a message and convert it to pseudo random bytes of specified length
 // https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-06#section-5.3.1
-pub fn expand_message_xmd(msg: &[u8], len_in_bytes: usize, dst: &[u8], hash_algorithm: HashAlgorithm) -> Result<Vec<u8>, AmclError> {
+pub fn expand_message_xmd(
+    msg: &[u8],
+    len_in_bytes: usize,
+    dst: &[u8],
+    hash_algorithm: HashAlgorithm,
+) -> Result<Vec<u8>, AmclError> {
     // ell = ceiling(len_in_bytes / b_in_bytes)
-    let ell = (len_in_bytes + HASH_TYPE - 1 ) / HASH_TYPE;
+    let ell = (len_in_bytes + HASH_TYPE - 1) / HASH_TYPE;
 
     // Error if length of output less than 255 bytes
     if ell >= 255 {
@@ -140,11 +145,14 @@ pub fn expand_message_xmd(msg: &[u8], len_in_bytes: usize, dst: &[u8], hash_algo
 
     for i in 2..=ell {
         // Set b[i] to H(strxor(b_0, b_(i - 1)) || I2OSP(i, 1) || DST_prime)
-        tmp = b[0].iter().enumerate().map(|(j, b_0)| {
+        tmp = b[0]
+            .iter()
+            .enumerate()
+            .map(|(j, b_0)| {
                 // Perform strxor(b[0], b[i-1])
-                b_0 ^ b[i-1][j] // b[i].len() will all be 32 bytes as they are SHA256 output.
-            }
-        ).collect();
+                b_0 ^ b[i - 1][j] // b[i].len() will all be 32 bytes as they are SHA256 output.
+            })
+            .collect();
         tmp.push(i as u8); // i < 256
         tmp.extend_from_slice(&dst_prime);
         b.push(hash(&tmp, hash_algorithm));

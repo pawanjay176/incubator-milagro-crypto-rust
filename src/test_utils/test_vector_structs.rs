@@ -40,5 +40,5 @@ pub struct Bls12381G2RoVectors {
     pub Q0: Point,
     pub Q1: Point,
     pub msg: String,
-    pub u: Vec<String>
+    pub u: Vec<String>,
 }

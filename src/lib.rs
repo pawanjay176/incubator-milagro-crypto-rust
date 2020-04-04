@@ -114,9 +114,9 @@ pub mod bls381g1 {
     pub mod fp12;
     pub mod fp2;
     pub mod fp4;
+    pub mod hash_to_curve;
     pub mod mpin;
     pub mod pair;
-    pub mod hash_to_curve;
 }
 
 #[cfg(feature = "bls381g2")]
@@ -138,9 +138,9 @@ pub mod bls381g2 {
     pub mod fp12;
     pub mod fp2;
     pub mod fp4;
+    pub mod hash_to_curve;
     pub mod mpin;
     pub mod pair;
-    pub mod hash_to_curve;
 }
 
 #[cfg(feature = "fp512bn")]

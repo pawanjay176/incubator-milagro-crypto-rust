@@ -21,24 +21,23 @@ under the License.
 ///
 /// An implementation of BLS12-381 as specified by the following standard:
 /// https://github.com/cfrg/draft-irtf-cfrg-bls-signature
-
 pub mod iso;
 pub mod sqrt_division_chain;
 
+use self::iso::Iso3Fp2;
 use super::big::Big;
 use super::ecp::ECP;
 use super::ecp2::ECP2;
 use super::fp::FP;
 use super::fp2::FP2;
+use super::hash_to_curve::*;
 use super::pair;
 use super::rom::*;
-use super::hash_to_curve::*;
-use self::iso::Iso3Fp2;
 
-use std::str;
 use rand::RAND;
 use sha3::SHA3;
 use sha3::SHAKE256;
+use std::str;
 
 // BLS API Functions
 pub const BFS: usize = MODBYTES as usize;
@@ -110,7 +109,8 @@ pub fn verify(sig: &[u8], m: &str, w: &[u8]) -> isize {
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
 pub fn hash_to_curve_g1(msg: &[u8]) -> ECP {
-    let u = hash_to_field_fp(msg, 2, DST).expect("hash to field should not fail for given parameters");
+    let u =
+        hash_to_field_fp(msg, 2, DST).expect("hash to field should not fail for given parameters");
     // TODO: Finish function
     let mut q0 = map_to_curve_g1(u[0]);
     let q1 = map_to_curve_g1(u[1]);
@@ -137,7 +137,8 @@ fn map_to_curve_g1(_u: FP) -> ECP {
 /// Takes a message as input and converts it to a Curve Point
 /// https://tools.ietf.org/html/draft-irtf-cfrg-hash-to-curve-05
 pub fn hash_to_curve_g2(msg: &[u8]) -> ECP2 {
-    let u = hash_to_field_fp2(msg, 2, DST).expect("hash to field should not fail for given parameters");
+    let u =
+        hash_to_field_fp2(msg, 2, DST).expect("hash to field should not fail for given parameters");
     let mut q0 = map_to_curve_g2(u[0]);
     let q1 = map_to_curve_g2(u[1]);
     q0.add(&q1);
@@ -235,7 +236,6 @@ mod tests {
                 ]
             )
         ];
-
 
     #[test]
     fn test_map_to_curve_g2() {
@@ -342,7 +342,6 @@ mod tests {
 
             let expected_q1 = ECP2::new_fp2s(&expected_x, &expected_y);
             assert_eq!(expected_q1, q1);
-
 
             // Check P
             let x_str_parts: Vec<&str> = case.P.x.split(',').collect();
